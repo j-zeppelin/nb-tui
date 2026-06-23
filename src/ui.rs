@@ -2,14 +2,14 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
     style::Style,
-    widgets::{Block, Borders},
+    widgets::{Block, BorderType, Borders},
 };
 
 use crate::app::{App, CurrentSection};
 
 pub fn render(f: &mut Frame, app: &App) {
     let focused_blue = Style::new().blue();
-    let unfocused = Style::default();
+    let unfocused = Style::new().dark_gray();
 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -32,20 +32,23 @@ pub fn render(f: &mut Frame, app: &App) {
 
     let notebook_block = Block::new()
         .borders(Borders::ALL)
-        .title("[1] Notebooks")
-        .border_style(notebook_border);
+        .title("[b] Notebooks")
+        .border_style(notebook_border)
+        .border_type(BorderType::Rounded);
 
-    let note_border = Block::new()
+    let notes_block = Block::new()
         .borders(Borders::ALL)
-        .title("[2] Notes")
-        .border_style(note_border);
+        .title("[n] Notes")
+        .border_style(note_border)
+        .border_type(BorderType::Rounded);
 
-    let search_border = Block::new()
+    let search_block = Block::new()
         .borders(Borders::ALL)
-        .title("[S] Search")
-        .border_style(search_border);
+        .title("[s] Search")
+        .border_style(search_border)
+        .border_type(BorderType::Rounded);
 
     f.render_widget(notebook_block, left_chunk);
-    f.render_widget(search_border, right_chunks[0]);
-    f.render_widget(note_border, right_chunks[1]);
+    f.render_widget(search_block, right_chunks[0]);
+    f.render_widget(notes_block, right_chunks[1]);
 }

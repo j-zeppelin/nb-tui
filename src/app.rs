@@ -21,9 +21,9 @@ impl App {
 
     pub fn handle_key_event(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('1') => self.current_section = CurrentSection::Notebooks,
-            KeyCode::Char('2') => self.current_section = CurrentSection::Notes,
-            KeyCode::Char('S') => self.current_section = CurrentSection::Search,
+            KeyCode::Char('b') => self.current_section = CurrentSection::Notebooks,
+            KeyCode::Char('n') => self.current_section = CurrentSection::Notes,
+            KeyCode::Char('s') => self.current_section = CurrentSection::Search,
             KeyCode::Esc => self.should_quit = true,
             _ => {}
         }

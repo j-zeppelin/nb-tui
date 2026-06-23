@@ -4,6 +4,7 @@ use ratatui::DefaultTerminal;
 use crate::app::App;
 
 mod app;
+mod nb;
 mod ui;
 
 fn main() -> color_eyre::Result<()> {
@@ -12,8 +13,7 @@ fn main() -> color_eyre::Result<()> {
     let mut app = App::default();
 
     run(terminal, &mut app)?;
-
-    println!("Hello, world!");
+    ratatui::restore();
 
     Ok(())
 }
