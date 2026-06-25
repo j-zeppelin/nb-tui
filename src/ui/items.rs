@@ -1,0 +1,39 @@
+use ratatui::{
+    Frame,
+    layout::Rect,
+    style::{Color, Style},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Borders, List, ListItem},
+};
+
+use crate::ui::{self, sections::items::ItemState};
+
+pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, focused: bool) {
+    let border_style = ui::border_style(focused);
+
+    let block = Block::new()
+        .borders(Borders::ALL)
+        .title("[n] Notes")
+        .border_style(border_style)
+        .border_type(BorderType::Rounded);
+
+    let items: Vec<ListItem> = state
+        .items
+        .iter()
+        .map(|i| {
+            let line = Line::from(vec![
+                Span::styled(format!("[{}] ", i.id), Style::new().fg(Color::Green)),
+                Span::raw(i.title.clone()),
+            ]);
+
+            ListItem::new(line)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .highlight_style(Style::new().bold().bg(Color::DarkGray))
+        .highlight_symbol("> ")
+        .block(block);
+
+    f.render_stateful_widget(list, area, &mut state.list_state);
+}

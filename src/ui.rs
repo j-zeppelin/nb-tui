@@ -7,6 +7,11 @@ use ratatui::{
 
 use crate::app::{App, CurrentSection};
 
+pub mod items;
+pub mod notebooks;
+pub mod search;
+pub mod sections;
+
 pub fn render(f: &mut Frame, app: &mut App) {
     let focused_blue = Style::new().blue();
     let unfocused = Style::new().dark_gray();
@@ -24,42 +29,31 @@ pub fn render(f: &mut Frame, app: &mut App) {
         .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
         .split(right_chunk);
 
-    let (notebook_border, note_border, search_border) = match app.current_section {
-        CurrentSection::Notebooks => (focused_blue, unfocused, unfocused),
-        CurrentSection::Notes => (unfocused, focused_blue, unfocused),
-        CurrentSection::Search => (unfocused, unfocused, focused_blue),
-    };
+    notebooks::render(
+        f,
+        left_chunk,
+        &mut app.notebooks,
+        matches!(app.current_section, CurrentSection::Notebooks),
+    );
 
-    let notebook_block = Block::new()
-        .borders(Borders::ALL)
-        .title("[b] Notebooks")
-        .border_style(notebook_border)
-        .border_type(BorderType::Rounded);
+    search::render(
+        f,
+        right_chunks[0],
+        &mut app.search,
+        matches!(app.current_section, CurrentSection::Search),
+    );
+    items::render(
+        f,
+        right_chunks[1],
+        &mut app.items,
+        matches!(app.current_section, CurrentSection::Items),
+    );
+}
 
-    let notes_block = Block::new()
-        .borders(Borders::ALL)
-        .title("[n] Notes")
-        .border_style(note_border)
-        .border_type(BorderType::Rounded);
-
-    let items: Vec<_> = app
-        .items
-        .iter()
-        .map(|i| format!("[{}] {}", i.id, i.title))
-        .collect();
-
-    let notes_list = List::new(items)
-        .highlight_style(Modifier::BOLD)
-        .highlight_symbol("> ")
-        .block(notes_block);
-
-    let search_block = Block::new()
-        .borders(Borders::ALL)
-        .title("[s] Search")
-        .border_style(search_border)
-        .border_type(BorderType::Rounded);
-
-    f.render_widget(notebook_block, left_chunk);
-    f.render_widget(search_block, right_chunks[0]);
-    f.render_stateful_widget(notes_list, right_chunks[1], &mut app.item_list_state);
+pub fn border_style(focused: bool) -> Style {
+    if focused {
+        Style::new().blue()
+    } else {
+        Style::new().blue().dim()
+    }
 }
