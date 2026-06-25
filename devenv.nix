@@ -1,7 +1,7 @@
 {pkgs, ...}: {
   env.GREET = "devenv";
 
-  packages = [pkgs.git pkgs.nb];
+  packages = [pkgs.git pkgs.nb pkgs.openssl];
 
   languages.rust = {
     enable = true;

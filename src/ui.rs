@@ -1,13 +1,13 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
-    style::Style,
-    widgets::{Block, BorderType, Borders},
+    style::{Color, Modifier, Style},
+    widgets::{Block, BorderType, Borders, List},
 };
 
 use crate::app::{App, CurrentSection};
 
-pub fn render(f: &mut Frame, app: &App) {
+pub fn render(f: &mut Frame, app: &mut App) {
     let focused_blue = Style::new().blue();
     let unfocused = Style::new().dark_gray();
 
@@ -42,6 +42,17 @@ pub fn render(f: &mut Frame, app: &App) {
         .border_style(note_border)
         .border_type(BorderType::Rounded);
 
+    let items: Vec<_> = app
+        .items
+        .iter()
+        .map(|i| format!("[{}] {}", i.id, i.title))
+        .collect();
+
+    let notes_list = List::new(items)
+        .highlight_style(Modifier::BOLD)
+        .highlight_symbol("> ")
+        .block(notes_block);
+
     let search_block = Block::new()
         .borders(Borders::ALL)
         .title("[s] Search")
@@ -50,5 +61,5 @@ pub fn render(f: &mut Frame, app: &App) {
 
     f.render_widget(notebook_block, left_chunk);
     f.render_widget(search_block, right_chunks[0]);
-    f.render_widget(notes_block, right_chunks[1]);
+    f.render_stateful_widget(notes_list, right_chunks[1], &mut app.item_list_state);
 }
