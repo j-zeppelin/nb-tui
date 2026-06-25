@@ -27,6 +27,8 @@ pub enum NbError {
     NbFailure { args: String, stderr: String },
 }
 
+/// execute `nb` with given args
+/// expects nb to return valid UTF-8
 pub fn execute_nb<I, S>(args: I) -> Result<String, NbError>
 where
     I: IntoIterator<Item = S>,
@@ -67,7 +69,9 @@ impl NbNotebook {
             "--no-color",
             "-af",
         ])?;
-        let items: Vec<_> = output.lines().map(|l| NbItem::parse(l).unwrap()).collect();
+
+        // TODO: decide how to handle parsing error, this will ignore parse errors for now
+        let items: Vec<_> = output.lines().map_while(|l| NbItem::parse(l)).collect();
 
         Ok(Self {
             name: name.to_string(),
@@ -105,7 +109,7 @@ impl NbItem {
         let close_idx = rest.find(']')?;
         let id = rest[..close_idx].trim().parse::<usize>().ok()?;
 
-        // parse kind and pinned status
+        // parse pinned
         let rest = rest[close_idx + 1..].trim_start();
         let mut pinned = false;
 
@@ -116,7 +120,24 @@ impl NbItem {
             rest.trim()
         };
 
-        let (kind, title) = if let Some(rest) = rest.strip_prefix('🔖') {
+        // parse kind and title
+        let (kind, title) = if let Some(rest) = rest.strip_prefix('📂') {
+            (NbItemKind::Folder, rest.trim())
+        } else if let Some(rest) = rest.strip_prefix('📄') {
+            (NbItemKind::Document, rest.trim())
+        } else if let Some(rest) = rest.strip_prefix('🌄') {
+            (NbItemKind::Image, rest.trim())
+        } else if let Some(rest) = rest.strip_prefix('📹') {
+            (NbItemKind::Video, rest.trim())
+        } else if let Some(rest) = rest.strip_prefix('📖') {
+            (NbItemKind::Ebook, rest.trim())
+        } else if let Some(rest) = rest.strip_prefix('🔉') {
+            (NbItemKind::Audio, rest.trim())
+        } else if let Some(rest) = rest.strip_prefix('✅') {
+            (NbItemKind::Todo { done: true }, rest.trim())
+        } else if let Some(rest) = rest.strip_prefix("✔️ ") {
+            (NbItemKind::Todo { done: false }, rest.trim())
+        } else if let Some(rest) = rest.strip_prefix('🔖') {
             let idx = rest.rfind('(')?;
             let name = rest[..idx].trim();
             let url = rest[idx + 1..].trim_end_matches(')').trim();
@@ -201,7 +222,7 @@ mod tests {
         let item = NbItem::parse("[5] ✔️  [ ] todo").unwrap();
 
         assert_eq!(item.id, 5);
-        assert_eq!(item.title, "todo");
+        assert_eq!(item.title, "[ ] todo");
         assert_eq!(item.kind, NbItemKind::Todo { done: false });
         assert_eq!(item.pinned, false);
     }
@@ -211,7 +232,7 @@ mod tests {
         let item = NbItem::parse("[6] ✅ [x] todo2").unwrap();
 
         assert_eq!(item.id, 6);
-        assert_eq!(item.title, "todo");
+        assert_eq!(item.title, "[x] todo2");
         assert_eq!(item.kind, NbItemKind::Todo { done: true });
         assert_eq!(item.pinned, false);
     }
