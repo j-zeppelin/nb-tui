@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List},
 };
 
-use crate::ui::{self, sections::notebooks::NotebookState};
+use crate::ui::{self, state::notebooks::NotebookState};
 
 pub fn render(f: &mut Frame, area: Rect, state: &mut NotebookState, focused: bool) {
     let border_style = ui::border_style(focused);

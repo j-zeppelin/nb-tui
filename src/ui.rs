@@ -1,8 +1,7 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    widgets::{Block, BorderType, Borders, List},
+    style::Style,
 };
 
 use crate::app::{App, CurrentSection};
@@ -10,12 +9,9 @@ use crate::app::{App, CurrentSection};
 pub mod items;
 pub mod notebooks;
 pub mod search;
-pub mod sections;
+pub mod state;
 
 pub fn render(f: &mut Frame, app: &mut App) {
-    let focused_blue = Style::new().blue();
-    let unfocused = Style::new().dark_gray();
-
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(20), Constraint::Min(1)].as_ref())

@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
 
-use crate::ui::{self, sections::items::ItemState};
+use crate::ui::{self, state::items::ItemState};
 
 pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, focused: bool) {
     let border_style = ui::border_style(focused);

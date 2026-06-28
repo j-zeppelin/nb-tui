@@ -1,6 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::ui::sections::{items::ItemState, notebooks::NotebookState, search::SearchState};
+use crate::ui::state::{
+    items::ItemState,
+    notebooks::NotebookState,
+    search::{SearchEvent, SearchMode, SearchState},
+};
 
 pub enum CurrentSection {
     Notebooks,
@@ -28,12 +32,42 @@ impl App {
     }
 
     pub fn handle_key_event(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Char('b') => self.current_section = CurrentSection::Notebooks,
-            KeyCode::Char('n') => self.current_section = CurrentSection::Items,
-            KeyCode::Char('s') => self.current_section = CurrentSection::Search,
-            KeyCode::Esc | KeyCode::Char('q') => self.should_quit = true,
-            _ => {}
+        if !self.search.wants_raw_input() {
+            // global key binds
+            match key.code {
+                KeyCode::Char('b') => {
+                    self.current_section = CurrentSection::Notebooks;
+                    return;
+                }
+                KeyCode::Char('n') => {
+                    self.current_section = CurrentSection::Items;
+                    return;
+                }
+                KeyCode::Char('s') => {
+                    self.current_section = CurrentSection::Search;
+                    self.search.mode = SearchMode::Editing;
+                    return;
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.should_quit = true;
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        // key binds per section
+        match self.current_section {
+            CurrentSection::Notebooks => self.notebooks.handle_key(key),
+            CurrentSection::Items => self.items.handle_key(key),
+            CurrentSection::Search => match self.search.handle_key(key) {
+                SearchEvent::None => {}
+                SearchEvent::QueryChanged => {} //TODO filter notes,
+                SearchEvent::Submitted => {
+                    self.current_section = CurrentSection::Items;
+                    // TODO filter notes
+                }
+            },
         }
     }
 }
