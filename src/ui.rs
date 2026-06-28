@@ -14,7 +14,7 @@ pub mod state;
 pub fn render(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(20), Constraint::Min(1)].as_ref())
+        .constraints([Constraint::Percentage(10), Constraint::Min(1)].as_ref())
         .split(f.area());
 
     let left_chunk = chunks[0];

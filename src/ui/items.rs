@@ -30,7 +30,11 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, focused: bool) {
         .collect();
 
     let list = List::new(items)
-        .highlight_style(Style::new().bold().bg(Color::DarkGray))
+        .highlight_style(if focused {
+            Style::new().bold().bg(Color::DarkGray)
+        } else {
+            Style::default()
+        })
         .highlight_symbol("> ")
         .block(block);
 

@@ -1,13 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
-use crate::{
-    app::Action,
-    nb::{
-        self,
-        item::{NbItem, NbItemKind},
-    },
-};
+use crate::nb::{self, item::NbItem};
 
 pub struct ItemState {
     pub list_state: ListState,
@@ -77,25 +71,16 @@ impl ItemState {
         self.list_state.select(Some(i));
     }
 
-    pub fn handle_key(&mut self, key: KeyEvent) -> Action {
+    pub fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.next();
-                Action::None
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.previous();
-                Action::None
-            }
+            KeyCode::Char('j') | KeyCode::Down => self.next(),
+            KeyCode::Char('k') | KeyCode::Up => self.previous(),
             KeyCode::Enter => {
                 if let Some(selected) = self.list_state.selected() {
-                    if let Some(item) = self.visible().nth(selected) {
-                        return Action::OpenEditor(item.id);
-                    }
+                    nb::execute(["edit", &selected.to_string()]).unwrap();
                 }
-                Action::None
             }
-            _ => Action::None,
+            _ => {}
         }
     }
 }

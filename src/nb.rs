@@ -1,5 +1,10 @@
 use std::{ffi::OsStr, io, process::Command};
 
+use crossterm::execute;
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
+use ratatui::DefaultTerminal;
 use thiserror::Error;
 
 pub mod item;
@@ -51,6 +56,21 @@ where
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+pub fn open_in_editor(term: &mut DefaultTerminal, id: usize) -> io::Result<()> {
+    disable_raw_mode()?;
+    execute!(term.backend_mut(), LeaveAlternateScreen)?;
+
+    Command::new("nb")
+        .args(["edit", &id.to_string()])
+        .status()?;
+
+    enable_raw_mode()?;
+
+    execute!(term.backend_mut(), EnterAlternateScreen)?;
+    term.clear()?;
+    Ok(())
 }
 
 const INDICATOR_ENV: &[(&str, &str)] = &[
