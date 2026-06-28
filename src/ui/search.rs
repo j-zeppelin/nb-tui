@@ -15,15 +15,13 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut SearchState, focused: bool)
 
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
-        .style(match state.mode {
+        .border_style(match state.mode {
             SearchMode::Editing => Style::default().fg(Color::Yellow),
             SearchMode::Navigating => border_style,
         })
         .title("[s] Search");
 
-    let input = Paragraph::new(state.query.as_str())
-        .style(Style::default().fg(Color::Yellow).not_dim())
-        .block(block);
+    let input = Paragraph::new(state.query.as_str()).block(block);
 
     f.render_widget(input, area);
 

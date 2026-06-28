@@ -5,13 +5,18 @@ use crate::nb::{self, item::NbItem};
 
 pub struct ItemState {
     pub items: Vec<NbItem>,
+    pub visible_indices: Vec<usize>,
     pub list_state: ListState,
 }
 
 impl ItemState {
     pub fn new() -> Self {
+        let items = Self::fetch();
+        let visible_indices = (0..items.len()).collect();
+
         Self {
-            items: Self::fetch(),
+            items,
+            visible_indices,
             list_state: ListState::default().with_selected(Some(0)),
         }
     }
@@ -22,6 +27,27 @@ impl ItemState {
             .lines()
             .map_while(|l| NbItem::parse(l))
             .collect()
+    }
+
+    pub fn apply_filter(&mut self, query: &str) {
+        self.visible_indices = if query.is_empty() {
+            (0..self.items.len()).collect()
+        } else {
+            self.items
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, item)| {
+                    item.title
+                        .to_lowercase()
+                        .contains(&query.to_lowercase())
+                        .then_some(idx)
+                })
+                .collect()
+        }
+    }
+
+    pub fn visible(&self) -> impl Iterator<Item = &NbItem> {
+        self.visible_indices.iter().map(|&i| &self.items[i])
     }
 
     pub fn refresh(&mut self) {

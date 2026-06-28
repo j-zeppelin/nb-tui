@@ -18,8 +18,7 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, focused: bool) {
         .border_type(BorderType::Rounded);
 
     let items: Vec<ListItem> = state
-        .items
-        .iter()
+        .visible()
         .map(|i| {
             let line = Line::from(vec![
                 Span::styled(format!("[{}] ", i.id), Style::new().fg(Color::Green)),

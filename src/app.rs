@@ -61,12 +61,12 @@ impl App {
             CurrentSection::Notebooks => self.notebooks.handle_key(key),
             CurrentSection::Items => self.items.handle_key(key),
             CurrentSection::Search => match self.search.handle_key(key) {
-                SearchEvent::None => {}
-                SearchEvent::QueryChanged => {} //TODO filter notes,
+                SearchEvent::QueryChanged => self.items.apply_filter(&self.search.query),
                 SearchEvent::Submitted => {
+                    self.items.apply_filter(&self.search.query);
                     self.current_section = CurrentSection::Items;
-                    // TODO filter notes
                 }
+                SearchEvent::None => {}
             },
         }
     }
