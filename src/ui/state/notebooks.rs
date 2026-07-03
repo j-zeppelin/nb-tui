@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
-use crate::{app::Action, nb};
+use crate::{app::AppEvent, nb};
 
 pub struct NotebookState {
     pub notebooks: Vec<String>,
@@ -54,17 +54,17 @@ impl NotebookState {
         self.list_state.select(Some(i));
     }
 
-    pub fn handle_key(&mut self, key: KeyEvent) -> Action {
+    pub fn handle_key(&mut self, key: KeyEvent) -> AppEvent {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 self.next();
-                Action::None
+                AppEvent::None
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 self.previous();
-                Action::None
+                AppEvent::None
             }
-            _ => Action::None,
+            _ => AppEvent::None,
         }
     }
 }

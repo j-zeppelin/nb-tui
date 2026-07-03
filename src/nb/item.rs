@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum NbItemKind {
     Note { preview: Option<String> },
     Bookmark { url: Option<String> },
@@ -11,7 +11,7 @@ pub enum NbItemKind {
     Folder,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NbItem {
     pub id: usize,
     pub title: String,

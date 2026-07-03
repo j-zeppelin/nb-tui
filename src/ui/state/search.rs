@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::app::Action;
+use crate::app::AppEvent;
 
 pub enum SearchEvent {
     None,
@@ -30,6 +30,11 @@ impl SearchState {
 
     pub fn wants_raw_input(&self) -> bool {
         matches!(self.mode, SearchMode::Editing)
+    }
+
+    pub fn clear(&mut self) {
+        self.query.clear();
+        self.character_idx = 0;
     }
 
     fn move_cursor_left(&mut self) {
@@ -72,34 +77,34 @@ impl SearchState {
             .unwrap_or(self.query.len())
     }
 
-    pub fn handle_key(&mut self, key: KeyEvent) -> Action {
+    pub fn handle_key(&mut self, key: KeyEvent) -> AppEvent {
         match key.code {
             KeyCode::Char(c) => {
                 self.enter_char(c);
-                Action::QueryChanged
+                AppEvent::QueryChanged
             }
             KeyCode::Backspace => {
                 self.delete_char();
-                Action::QueryChanged
+                AppEvent::QueryChanged
             }
             KeyCode::Enter => {
                 self.mode = SearchMode::Navigating;
-                Action::SearchSubmitted
+                AppEvent::SearchSubmitted
             }
             KeyCode::Esc => {
                 self.mode = SearchMode::Navigating;
-                Action::None
+                AppEvent::None
             }
             KeyCode::Left => {
                 self.move_cursor_left();
-                Action::None
+                AppEvent::None
             }
             KeyCode::Right => {
                 self.move_cursor_right();
-                Action::None
+                AppEvent::None
             }
 
-            _ => Action::None,
+            _ => AppEvent::None,
         }
     }
 }

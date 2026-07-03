@@ -1,7 +1,7 @@
 use crossterm::event::{self};
 use ratatui::DefaultTerminal;
 
-use crate::app::{Action, App};
+use crate::app::{App, AppEvent};
 
 mod app;
 mod nb;
@@ -30,12 +30,12 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
 
         if let Some(key_event) = event::read()?.as_key_press_event() {
             match app.handle_key_event(key_event) {
-                Action::OpenEditor(id) => {
+                AppEvent::OpenEditor(id) => {
                     nb::open_in_editor(&mut terminal, id)?;
                     app.items.refresh();
                     app.items.apply_filter(&app.search.query);
                 }
-                Action::Quit => break Ok(()),
+                AppEvent::Quit => break Ok(()),
                 _ => {}
             }
         }

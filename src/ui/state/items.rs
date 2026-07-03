@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
 use crate::{
-    app::Action,
+    app::{App, AppEvent},
     nb::{
         self,
         item::{NbItem, NbItemKind},
@@ -11,28 +11,36 @@ use crate::{
 
 pub struct ItemState {
     pub list_state: ListState,
+    current_folder: String,
     items: Vec<NbItem>,
     visible_indices: Vec<usize>,
 }
 
 impl ItemState {
     pub fn new() -> Self {
-        let items = Self::fetch();
+        let items = Self::fetch(None);
         let visible_indices = (0..items.len()).collect();
 
         Self {
+            current_folder: "".into(),
             items,
             visible_indices,
             list_state: ListState::default().with_selected(Some(0)),
         }
     }
 
-    fn fetch() -> Vec<NbItem> {
-        nb::execute(["ls", "--no-header", "--no-footer", "-af"])
-            .unwrap()
-            .lines()
-            .map_while(|l| NbItem::parse(l))
-            .collect()
+    fn fetch(path: Option<&str>) -> Vec<NbItem> {
+        nb::execute([
+            "ls",
+            path.unwrap_or(""),
+            "--no-header",
+            "--no-footer",
+            "-af",
+        ])
+        .unwrap()
+        .lines()
+        .map_while(|l| NbItem::parse(l))
+        .collect()
     }
 
     pub fn apply_filter(&mut self, query: &str) {
@@ -57,7 +65,7 @@ impl ItemState {
     }
 
     pub fn refresh(&mut self) {
-        self.items = Self::fetch();
+        self.items = Self::fetch(Some(&self.current_folder));
     }
 
     pub fn next(&mut self) {
@@ -77,25 +85,33 @@ impl ItemState {
         self.list_state.select(Some(i));
     }
 
-    pub fn handle_key(&mut self, key: KeyEvent) -> Action {
+    pub fn handle_key(&mut self, key: KeyEvent) -> AppEvent {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 self.next();
-                Action::None
+                AppEvent::None
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 self.previous();
-                Action::None
+                AppEvent::None
             }
             KeyCode::Enter => {
                 if let Some(selected) = self.list_state.selected() {
-                    if let Some(item) = self.visible().nth(selected) {
-                        return Action::OpenEditor(item.id);
+                    let selected_item = self.visible().nth(selected).cloned();
+
+                    if let Some(item) = selected_item {
+                        match item.kind {
+                            NbItemKind::Folder => {
+                                self.current_folder.push_str(&format!("{}/", item.title));
+                                return AppEvent::FolderOpened;
+                            }
+                            _ => return AppEvent::OpenEditor(item.id),
+                        }
                     }
                 }
-                Action::None
+                AppEvent::None
             }
-            _ => Action::None,
+            _ => AppEvent::None,
         }
     }
 }

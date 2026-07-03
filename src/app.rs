@@ -6,12 +6,13 @@ use crate::ui::state::{
     search::{SearchMode, SearchState},
 };
 
-pub enum Action {
+pub enum AppEvent {
     None,
     Quit,
     OpenEditor(usize),
     QueryChanged,
     SearchSubmitted,
+    FolderOpened,
 }
 
 pub enum CurrentSection {
@@ -37,25 +38,25 @@ impl App {
         }
     }
 
-    pub fn handle_key_event(&mut self, key: KeyEvent) -> Action {
+    pub fn handle_key_event(&mut self, key: KeyEvent) -> AppEvent {
         if !self.search.wants_raw_input() {
             // global key binds
             match key.code {
                 KeyCode::Char('b') => {
                     self.current_section = CurrentSection::Notebooks;
-                    return Action::None;
+                    return AppEvent::None;
                 }
                 KeyCode::Char('n') => {
                     self.current_section = CurrentSection::Items;
-                    return Action::None;
+                    return AppEvent::None;
                 }
                 KeyCode::Char('s') => {
                     self.current_section = CurrentSection::Search;
                     self.search.mode = SearchMode::Editing;
-                    return Action::None;
+                    return AppEvent::None;
                 }
                 KeyCode::Esc | KeyCode::Char('q') => {
-                    return Action::Quit;
+                    return AppEvent::Quit;
                 }
                 _ => {}
             }
@@ -68,14 +69,21 @@ impl App {
         };
 
         match action {
-            Action::QueryChanged => {
+            AppEvent::QueryChanged => {
                 self.items.apply_filter(&self.search.query);
-                Action::None
+                AppEvent::None
             }
-            Action::SearchSubmitted => {
+            AppEvent::SearchSubmitted => {
                 self.items.apply_filter(&self.search.query);
                 self.current_section = CurrentSection::Items;
-                Action::None
+                AppEvent::None
+            }
+            AppEvent::FolderOpened => {
+                self.items.refresh();
+                self.items.apply_filter("");
+                self.search.clear();
+
+                AppEvent::None
             }
             other => other,
         }

@@ -58,6 +58,7 @@ where
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+/// helper function for opening notebook files with the default editor
 pub fn open_in_editor(term: &mut DefaultTerminal, id: usize) -> io::Result<()> {
     disable_raw_mode()?;
     execute!(term.backend_mut(), LeaveAlternateScreen)?;
