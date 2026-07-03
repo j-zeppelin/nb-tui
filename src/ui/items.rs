@@ -17,7 +17,7 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, focused: bool) {
         .border_style(border_style)
         .border_type(BorderType::Rounded);
 
-    let items: Vec<ListItem> = state
+    let mut items: Vec<ListItem> = state
         .visible()
         .map(|i| {
             let line = Line::from(vec![
@@ -28,6 +28,14 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, focused: bool) {
             ListItem::new(line)
         })
         .collect();
+
+    items.insert(
+        0,
+        ListItem::new(
+            Line::from(state.current_folder.to_string_lossy())
+                .style(Style::default().bold().fg(Color::Blue).dim()),
+        ),
+    );
 
     let list = List::new(items)
         .highlight_style(if focused {

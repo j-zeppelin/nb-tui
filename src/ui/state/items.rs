@@ -1,8 +1,10 @@
+use std::path::{Path, PathBuf};
+
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
 use crate::{
-    app::{App, AppEvent},
+    app::AppEvent,
     nb::{
         self,
         item::{NbItem, NbItemKind},
@@ -11,7 +13,7 @@ use crate::{
 
 pub struct ItemState {
     pub list_state: ListState,
-    current_folder: String,
+    pub current_folder: PathBuf,
     items: Vec<NbItem>,
     visible_indices: Vec<usize>,
 }
@@ -22,25 +24,27 @@ impl ItemState {
         let visible_indices = (0..items.len()).collect();
 
         Self {
-            current_folder: "".into(),
+            current_folder: PathBuf::from("/"),
             items,
             visible_indices,
             list_state: ListState::default().with_selected(Some(0)),
         }
     }
 
-    fn fetch(path: Option<&str>) -> Vec<NbItem> {
-        nb::execute([
-            "ls",
-            path.unwrap_or(""),
-            "--no-header",
-            "--no-footer",
-            "-af",
-        ])
-        .unwrap()
-        .lines()
-        .map_while(|l| NbItem::parse(l))
-        .collect()
+    fn fetch(path: Option<PathBuf>) -> Vec<NbItem> {
+        let mut path = path.unwrap_or("".into());
+
+        if let Ok(stripped) = path.strip_prefix("/") {
+            path = stripped.to_path_buf();
+        }
+
+        let path = path.to_string_lossy() + "/";
+
+        nb::execute(["ls", &path, "--no-header", "--no-footer", "-af"])
+            .unwrap()
+            .lines()
+            .map_while(|l| NbItem::parse(l))
+            .collect()
     }
 
     pub fn apply_filter(&mut self, query: &str) {
@@ -57,7 +61,7 @@ impl ItemState {
                         .then_some(idx)
                 })
                 .collect()
-        }
+        };
     }
 
     pub fn visible(&self) -> impl Iterator<Item = &NbItem> {
@@ -65,12 +69,12 @@ impl ItemState {
     }
 
     pub fn refresh(&mut self) {
-        self.items = Self::fetch(Some(&self.current_folder));
+        self.items = Self::fetch(Some(self.current_folder.clone()));
     }
 
     pub fn next(&mut self) {
         let i = match self.list_state.selected() {
-            Some(i) => (i + 1).min(self.items.len().saturating_sub(1)),
+            Some(i) => (i + 1).min(self.items.len()),
             None => 0,
         };
 
@@ -97,12 +101,18 @@ impl ItemState {
             }
             KeyCode::Enter => {
                 if let Some(selected) = self.list_state.selected() {
-                    let selected_item = self.visible().nth(selected).cloned();
+                    // go back to parent folder
+                    if selected == 0 {
+                        self.current_folder.pop();
+                        return AppEvent::FolderOpened;
+                    }
+
+                    let selected_item = self.visible().nth(selected.saturating_sub(1)).cloned();
 
                     if let Some(item) = selected_item {
                         match item.kind {
                             NbItemKind::Folder => {
-                                self.current_folder.push_str(&format!("{}/", item.title));
+                                self.current_folder.push(&format!("{}", item.title));
                                 return AppEvent::FolderOpened;
                             }
                             _ => return AppEvent::OpenEditor(item.id),
