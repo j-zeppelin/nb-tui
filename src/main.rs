@@ -1,4 +1,6 @@
-use crossterm::event::{self};
+use std::time::Duration;
+
+use crossterm::event::{self, Event};
 use ratatui::DefaultTerminal;
 
 use crate::app::{App, AppEvent};
@@ -28,16 +30,18 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
     loop {
         terminal.draw(|frame| ui::render(frame, app))?;
 
-        if let Some(key_event) = event::read()?.as_key_press_event() {
-            match app.handle_key_event(key_event) {
-                AppEvent::OpenEditor(id) => {
-                    nb::open_in_editor(&mut terminal, id)?;
-                    app.items.refresh();
-                    app.items.apply_filter(&app.search.query);
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key_event) = event::read()? {
+                match app.handle_key_event(key_event) {
+                    AppEvent::OpenEditor(id) => {
+                        nb::open_in_editor(&mut terminal, id)?;
+                    }
+                    AppEvent::Quit => break Ok(()),
+                    _ => {}
                 }
-                AppEvent::Quit => break Ok(()),
-                _ => {}
             }
         }
+
+        app.poll_nb_events();
     }
 }

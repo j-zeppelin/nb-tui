@@ -1,10 +1,20 @@
+use std::sync::mpsc::{self, Receiver, Sender};
+
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::ui::state::{
-    items::ItemState,
-    notebooks::NotebookState,
-    search::{SearchMode, SearchState},
+use crate::{
+    nb::{self, NbError},
+    ui::state::{
+        items::ItemState,
+        notebooks::NotebookState,
+        search::{SearchMode, SearchState},
+    },
 };
+
+#[derive(Clone, Copy, Debug)]
+pub enum NbTag {
+    RefreshItems,
+}
 
 pub enum AppEvent {
     None,
@@ -26,15 +36,42 @@ pub struct App {
     pub notebooks: NotebookState,
     pub items: ItemState,
     pub search: SearchState,
+    nb_tx: Sender<(NbTag, Result<String, NbError>)>,
+    nb_rx: Receiver<(NbTag, Result<String, NbError>)>,
 }
 
 impl App {
     pub fn default() -> Self {
-        Self {
+        let (nb_tx, nb_rx) = mpsc::channel();
+        let mut app = Self {
             current_section: CurrentSection::Notebooks,
             notebooks: NotebookState::new(),
             items: ItemState::new(),
             search: SearchState::new(),
+            nb_tx,
+            nb_rx,
+        };
+
+        app.refresh_items();
+        app
+    }
+
+    fn refresh_items(&mut self) {
+        let args = self.items.ls_args();
+        nb::execute_async(args, NbTag::RefreshItems, self.nb_tx.clone());
+    }
+
+    pub fn poll_nb_events(&mut self) {
+        while let Ok((tag, result)) = self.nb_rx.try_recv() {
+            match tag {
+                NbTag::RefreshItems => match result {
+                    Ok(stdout) => {
+                        self.items.set_items_from_str(stdout);
+                        self.items.apply_filter(&self.search.query);
+                    }
+                    Err(_) => todo!(),
+                },
+            }
         }
     }
 
@@ -79,9 +116,8 @@ impl App {
                 AppEvent::None
             }
             AppEvent::FolderOpened => {
-                self.items.refresh();
-                self.items.apply_filter("");
                 self.search.clear();
+                self.refresh_items();
 
                 AppEvent::None
             }

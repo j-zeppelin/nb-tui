@@ -1,14 +1,14 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    vec,
+};
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
 use crate::{
     app::AppEvent,
-    nb::{
-        self,
-        item::{NbItem, NbItemKind},
-    },
+    nb::{self, NbItem, NbItemKind},
 };
 
 pub struct ItemState {
@@ -20,15 +20,31 @@ pub struct ItemState {
 
 impl ItemState {
     pub fn new() -> Self {
-        let items = Self::fetch(None);
-        let visible_indices = (0..items.len()).collect();
-
         Self {
             current_folder: PathBuf::from("/"),
-            items,
-            visible_indices,
+            items: vec![],
+            visible_indices: vec![],
             list_state: ListState::default().with_selected(Some(0)),
         }
+    }
+
+    pub fn set_items_from_str(&mut self, stdout: String) {
+        self.items = stdout.lines().map_while(|l| NbItem::parse(l)).collect();
+        self.list_state.select(Some(0));
+    }
+
+    pub fn ls_args(&self) -> Vec<String> {
+        let mut path = self.current_folder.to_path_buf();
+
+        if let Ok(stripped) = path.strip_prefix("/") {
+            path = stripped.to_path_buf();
+        }
+        let path = path.to_string_lossy() + "/";
+
+        vec!["ls", &path, "--no-header", "--no-footer", "-af"]
+            .iter()
+            .map(ToString::to_string)
+            .collect()
     }
 
     fn fetch(path: Option<PathBuf>) -> Vec<NbItem> {
@@ -66,10 +82,6 @@ impl ItemState {
 
     pub fn visible(&self) -> impl Iterator<Item = &NbItem> {
         self.visible_indices.iter().map(|&i| &self.items[i])
-    }
-
-    pub fn refresh(&mut self) {
-        self.items = Self::fetch(Some(self.current_folder.clone()));
     }
 
     pub fn next(&mut self) {
