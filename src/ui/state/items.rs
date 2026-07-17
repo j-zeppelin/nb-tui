@@ -1,14 +1,11 @@
-use std::{
-    path::{Path, PathBuf},
-    vec,
-};
+use std::{path::PathBuf, vec};
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
 use crate::{
     app::AppEvent,
-    nb::{self, NbItem, NbItemKind},
+    nb::{NbItem, NbItemKind},
 };
 
 pub struct ItemState {
@@ -22,8 +19,8 @@ impl ItemState {
     pub fn new() -> Self {
         Self {
             current_folder: PathBuf::from("/"),
-            items: vec![],
-            visible_indices: vec![],
+            items: Vec::new(),
+            visible_indices: Vec::new(),
             list_state: ListState::default().with_selected(Some(0)),
         }
     }
@@ -44,22 +41,6 @@ impl ItemState {
         vec!["ls", &path, "--no-header", "--no-footer", "-af"]
             .iter()
             .map(ToString::to_string)
-            .collect()
-    }
-
-    fn fetch(path: Option<PathBuf>) -> Vec<NbItem> {
-        let mut path = path.unwrap_or("".into());
-
-        if let Ok(stripped) = path.strip_prefix("/") {
-            path = stripped.to_path_buf();
-        }
-
-        let path = path.to_string_lossy() + "/";
-
-        nb::execute(["ls", &path, "--no-header", "--no-footer", "-af"])
-            .unwrap()
-            .lines()
-            .map_while(|l| NbItem::parse(l))
             .collect()
     }
 
@@ -84,7 +65,7 @@ impl ItemState {
         self.visible_indices.iter().map(|&i| &self.items[i])
     }
 
-    pub fn next(&mut self) {
+    fn next(&mut self) {
         let i = match self.list_state.selected() {
             Some(i) => (i + 1).min(self.items.len()),
             None => 0,
@@ -93,7 +74,7 @@ impl ItemState {
         self.list_state.select(Some(i));
     }
 
-    pub fn previous(&mut self) {
+    fn previous(&mut self) {
         let i = match self.list_state.selected() {
             Some(i) => i.saturating_sub(1),
             None => 0,
@@ -105,11 +86,17 @@ impl ItemState {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 self.next();
-                AppEvent::None
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 self.previous();
-                AppEvent::None
+            }
+            KeyCode::Char('x') => {
+                if let Some(idx) = self.list_state.selected()
+                    && idx != 0
+                    && let Some(item) = self.items.get(idx.saturating_sub(1))
+                {
+                    return AppEvent::ItemRemoved(item.id);
+                };
             }
             KeyCode::Enter => {
                 if let Some(selected) = self.list_state.selected() {
@@ -131,9 +118,10 @@ impl ItemState {
                         }
                     }
                 }
-                AppEvent::None
             }
-            _ => AppEvent::None,
-        }
+            _ => {}
+        };
+
+        AppEvent::None
     }
 }

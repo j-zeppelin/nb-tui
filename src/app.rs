@@ -14,6 +14,7 @@ use crate::{
 #[derive(Clone, Copy, Debug)]
 pub enum NbTag {
     RefreshItems,
+    RemoveItem,
 }
 
 pub enum AppEvent {
@@ -23,6 +24,7 @@ pub enum AppEvent {
     QueryChanged,
     SearchSubmitted,
     FolderOpened,
+    ItemRemoved(usize),
 }
 
 pub enum CurrentSection {
@@ -71,6 +73,9 @@ impl App {
                     }
                     Err(_) => todo!(),
                 },
+                NbTag::RemoveItem => {
+                    self.refresh_items();
+                }
             }
         }
     }
@@ -119,6 +124,14 @@ impl App {
                 self.search.clear();
                 self.refresh_items();
 
+                AppEvent::None
+            }
+            AppEvent::ItemRemoved(id) => {
+                nb::execute_async(
+                    ["rm", &id.to_string(), "--force"],
+                    NbTag::RemoveItem,
+                    self.nb_tx.clone(),
+                );
                 AppEvent::None
             }
             other => other,
