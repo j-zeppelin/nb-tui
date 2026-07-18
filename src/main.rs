@@ -33,9 +33,7 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key_event) = event::read()? {
                 match app.handle_key_event(key_event) {
-                    AppEvent::OpenEditor(id) => {
-                        nb::open_in_editor(&mut terminal, id)?;
-                    }
+                    AppEvent::OpenEditor(id) => {}
                     AppEvent::Quit => break Ok(()),
                     _ => {}
                 }

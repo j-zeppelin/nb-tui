@@ -1,6 +1,8 @@
-use std::sync::mpsc::Sender;
-use std::thread;
-use std::{ffi::OsStr, io, process::Command};
+use std::collections::HashSet;
+use std::fs::{DirEntry, File};
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::{io, process::Command};
 
 use crossterm::execute;
 use crossterm::terminal::{
@@ -8,20 +10,6 @@ use crossterm::terminal::{
 };
 use ratatui::DefaultTerminal;
 use thiserror::Error;
-
-const INDICATOR_ENV: &[(&str, &str)] = &[
-    ("NB_INDICATOR_AUDIO", "🔉"),
-    ("NB_INDICATOR_BOOKMARK", "🔖"),
-    ("NB_INDICATOR_DOCUMENT", "📄"),
-    ("NB_INDICATOR_EBOOK", "📖"),
-    ("NB_INDICATOR_ENCRYPTED", "🔒"),
-    ("NB_INDICATOR_FOLDER", "📂"),
-    ("NB_INDICATOR_IMAGE", "🌄"),
-    ("NB_INDICATOR_PINNED", "📌"),
-    ("NB_INDICATOR_TODO", "✔️ "),
-    ("NB_INDICATOR_TODO_DONE", "✅"),
-    ("NB_INDICATOR_VIDEO", "📹"),
-];
 
 #[derive(Error, Debug)]
 pub enum NbError {
@@ -43,68 +31,46 @@ pub fn check_nb_available() -> Result<(), NbError> {
     Ok(())
 }
 
-/// execute `nb` with given args, `--no-color` is always passed to `nb`
-/// expects nb to return valid UTF-8
-pub fn execute<I, S>(args: I) -> Result<String, NbError>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    let mut args: Vec<_> = args
-        .into_iter()
-        .map(|a| a.as_ref().to_string_lossy().into_owned())
-        .collect();
+pub struct NbClient {
+    basepath: PathBuf,
+}
 
-    args.push("--no-color".to_string());
-
-    let output = Command::new("nb")
-        .args(&args)
-        .envs(INDICATOR_ENV.iter().copied())
-        .output()?;
-
-    if !output.status.success() {
-        return Err(NbError::NbFailure {
-            args: args.join(" "),
-            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-        });
+impl NbClient {
+    pub fn default() -> Self {
+        Self {
+            basepath: PathBuf::from("~/.nb"),
+        }
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
+    /// execute `nb` with given args
+    /// expects `nb` return valid UTF-8
+    fn run(&self, args: &[&str]) -> Result<String, NbError> {
+        let output = Command::new("nb").args(args).output()?;
 
-/// executes `nb` in a background thread and sends back the result tagged with `tag`
-/// wraps [execute]
-pub fn execute_async<I, S, T>(args: I, tag: T, tx: Sender<(T, Result<String, NbError>)>)
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-    T: Send + 'static,
-{
-    let args: Vec<String> = args
-        .into_iter()
-        .map(|a| a.as_ref().to_string_lossy().into_owned())
-        .collect();
+        if !output.status.success() {
+            return Err(NbError::NbFailure {
+                args: args.join(" "),
+                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            });
+        }
 
-    thread::spawn(move || {
-        let result = execute(args);
-        let _ = tx.send((tag, result));
-    });
-}
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
 
-/// helper function for opening notebook files with the default editor
-pub fn open_in_editor(term: &mut DefaultTerminal, id: usize) -> io::Result<()> {
-    disable_raw_mode()?;
-    execute!(term.backend_mut(), LeaveAlternateScreen)?;
+    pub fn open_in_editor(term: &mut DefaultTerminal, id: usize) -> io::Result<()> {
+        disable_raw_mode()?;
+        execute!(term.backend_mut(), LeaveAlternateScreen)?;
 
-    Command::new("nb")
-        .args(["edit", &id.to_string()])
-        .status()?;
+        Command::new("nb")
+            .args(["edit", &id.to_string()])
+            .status()?;
 
-    enable_raw_mode()?;
+        enable_raw_mode()?;
 
-    execute!(term.backend_mut(), EnterAlternateScreen)?;
-    term.clear()?;
-    Ok(())
+        execute!(term.backend_mut(), EnterAlternateScreen)?;
+        term.clear()?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -130,166 +96,83 @@ pub struct NbItem {
 }
 
 impl NbItem {
-    pub fn parse(line: &str) -> Option<Self> {
-        // parse id
-        let line = line.trim_start();
-        let rest = line.strip_prefix('[')?;
-        let close_idx = rest.find(']')?;
-        let id = rest[..close_idx].trim().parse::<usize>().ok()?;
+    pub fn parse(id: usize, entry: DirEntry, pinned: &HashSet<String>) -> Option<Self> {
+        let path = entry.path();
+        let file_type = entry.file_type().ok()?;
+        let filename = path.file_name()?.to_str()?;
+        let extension = filename.rsplit_once('.').map(|(_, ext)| ext)?;
 
-        // parse pinned
-        let rest = rest[close_idx + 1..].trim_start();
-        let mut pinned = false;
-        let rest = if let Some(stripped) = rest.strip_prefix('📌') {
-            pinned = true;
-            stripped.trim()
-        } else {
-            rest.trim()
-        };
+        if file_type.is_dir() {
+            return Some(Self {
+                id,
+                title: filename.to_string(),
+                kind: NbItemKind::Folder,
+                pinned: pinned.contains(filename),
+                encrypted: false,
+            });
+        }
 
-        // parse encrypted (pinned always comes first)
-        let mut encrypted = false;
-        let rest = if let Some(stripped) = rest.strip_prefix('🔒') {
-            encrypted = true;
-            stripped.trim()
-        } else {
-            rest.trim()
-        };
-
-        // parse kind and title
-        let (kind, title) = if let Some(rest) = rest.strip_prefix('📂') {
-            (NbItemKind::Folder, rest.trim())
-        } else if let Some(rest) = rest.strip_prefix('📄') {
-            (NbItemKind::Document, rest.trim())
-        } else if let Some(rest) = rest.strip_prefix('🌄') {
-            (NbItemKind::Image, rest.trim())
-        } else if let Some(rest) = rest.strip_prefix('📹') {
-            (NbItemKind::Video, rest.trim())
-        } else if let Some(rest) = rest.strip_prefix('📖') {
-            (NbItemKind::Ebook, rest.trim())
-        } else if let Some(rest) = rest.strip_prefix('🔉') {
-            (NbItemKind::Audio, rest.trim())
-        } else if let Some(rest) = rest.strip_prefix('✅') {
-            (NbItemKind::Todo { done: true }, rest.trim())
-        } else if let Some(rest) = rest.strip_prefix("✔️ ") {
-            (NbItemKind::Todo { done: false }, rest.trim())
-        } else if let Some(rest) = rest.strip_prefix('🔖') {
-            if encrypted {
-                (NbItemKind::Bookmark { url: None }, rest.trim())
-            } else {
-                let idx = rest.rfind('(')?;
-                let name = rest[..idx].trim();
-                let url = rest[idx + 1..].trim_end_matches(')').trim();
-                (
-                    NbItemKind::Bookmark {
-                        url: Some(url.to_string()),
-                    },
-                    name,
-                )
+        match extension {
+            ".todo.md" => {
+                todo!()
             }
-        } else {
-            if let Some((title, preview)) = rest.split_once('·') {
-                (
-                    NbItemKind::Note {
-                        preview: Some(preview.trim().trim_matches('\"').to_string()),
-                    },
-                    title.trim(),
-                )
-            } else {
-                (NbItemKind::Note { preview: None }, rest.trim())
+            ".bookmark.md" => {
+                todo!()
             }
-        };
+            ".md" => {
+                todo!()
+            }
+            _ => {
+                todo!()
+            }
+        }
+    }
 
-        Some(Self {
-            id,
-            title: title.to_string(),
-            kind,
-            pinned,
-            encrypted,
-        })
+    fn todo_info(file: File) -> Option<(String, bool)> {
+        let mut reader = BufReader::new(file);
+        let mut buf = String::new();
+
+        let mut done = false;
+        let mut name = String::new();
+
+        loop {
+            buf.clear();
+            let bytes = reader.read_line(&mut buf).ok()?;
+            if bytes == 0 {
+                break;
+            } // EOF
+
+            if buf.trim_start().starts_with('#') {
+                let l_bracket_idx = buf.find('[')?;
+
+                if buf.get(l_bracket_idx + 2..=l_bracket_idx + 2)? == "]"
+                    && buf.get(l_bracket_idx + 1..=l_bracket_idx + 1)? == "x"
+                {
+                    done = true;
+                }
+
+                name = buf.get(l_bracket_idx + 4..)?.to_string();
+            }
+        }
+
+        Some((name, done))
     }
 }
 
 mod tests {
     use super::*;
-
-    #[test]
-    fn note_parses_correctly() {
-        let item = NbItem::parse("[1] note.md · \"this is a note\"").unwrap();
-
-        assert_eq!(item.id, 1);
-        assert_eq!(item.title, "note.md");
-        assert_eq!(
-            item.kind,
-            NbItemKind::Note {
-                preview: Some("this is a note".to_string())
-            }
-        );
-        assert_eq!(item.pinned, false);
-    }
-
-    #[test]
-    fn note_with_title_parses_correctly() {
-        let item = NbItem::parse("[2] note with title").unwrap();
-
-        assert_eq!(item.id, 2);
-        assert_eq!(item.title, "note with title");
-        assert_eq!(item.kind, NbItemKind::Note { preview: None });
-        assert_eq!(item.pinned, false);
-    }
-
-    #[test]
-    fn pinned_note_with_title_parses_correctly() {
-        let item = NbItem::parse("[3] 📌 note with title").unwrap();
-
-        assert_eq!(item.id, 3);
-        assert_eq!(item.title, "note with title");
-        assert_eq!(item.kind, NbItemKind::Note { preview: None });
-        assert_eq!(item.pinned, true);
-    }
-
-    #[test]
-    fn folder_parses_correctly() {
-        let item = NbItem::parse("[4] 📂 folder").unwrap();
-
-        assert_eq!(item.id, 4);
-        assert_eq!(item.title, "folder");
-        assert_eq!(item.kind, NbItemKind::Folder);
-        assert_eq!(item.pinned, false);
-    }
+    use std::io::{Seek, SeekFrom, Write};
+    use tempfile::tempfile;
 
     #[test]
     fn todo_parses_correctly() {
-        let item = NbItem::parse("[5] ✔️  [ ] todo").unwrap();
+        let mut tmpfile: File = tempfile().unwrap();
+        write!(tmpfile, "# [ ] todo").unwrap();
+        tmpfile.seek(SeekFrom::Start(0)).unwrap();
 
-        assert_eq!(item.id, 5);
-        assert_eq!(item.title, "[ ] todo");
-        assert_eq!(item.kind, NbItemKind::Todo { done: false });
-        assert_eq!(item.pinned, false);
-    }
+        let result = NbItem::todo_info(tmpfile).unwrap();
 
-    #[test]
-    fn finished_todo_parses_correctly() {
-        let item = NbItem::parse("[6] ✅ [x] todo2").unwrap();
-
-        assert_eq!(item.id, 6);
-        assert_eq!(item.title, "[x] todo2");
-        assert_eq!(item.kind, NbItemKind::Todo { done: true });
-        assert_eq!(item.pinned, false);
-    }
-
-    #[test]
-    fn bookmark_parses_correctly() {
-        let item = NbItem::parse("[7] 🔖 Google (www.google.com)").unwrap();
-
-        assert_eq!(item.id, 7);
-        assert_eq!(item.title, "Google");
-        assert_eq!(
-            item.kind,
-            NbItemKind::Bookmark {
-                url: Some("www.google.com".to_string())
-            }
-        );
-        assert_eq!(item.pinned, false);
+        assert_eq!(result.0, "todo".to_string());
+        assert_eq!(result.1, false);
     }
 }

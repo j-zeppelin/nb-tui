@@ -60,7 +60,6 @@ impl App {
 
     fn refresh_items(&mut self) {
         let args = self.items.ls_args();
-        nb::execute_async(args, NbTag::RefreshItems, self.nb_tx.clone());
     }
 
     pub fn poll_nb_events(&mut self) {
@@ -126,14 +125,7 @@ impl App {
 
                 AppEvent::None
             }
-            AppEvent::ItemRemoved(id) => {
-                nb::execute_async(
-                    ["rm", &id.to_string(), "--force"],
-                    NbTag::RemoveItem,
-                    self.nb_tx.clone(),
-                );
-                AppEvent::None
-            }
+            AppEvent::ItemRemoved(id) => AppEvent::None,
             other => other,
         }
     }

@@ -26,7 +26,7 @@ impl ItemState {
     }
 
     pub fn set_items_from_str(&mut self, stdout: String) {
-        self.items = stdout.lines().map_while(|l| NbItem::parse(l)).collect();
+        // self.items = stdout.lines().map_while(|l| NbItem::parse(l)).collect();
         self.list_state.select(Some(0));
     }
 

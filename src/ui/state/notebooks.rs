@@ -26,11 +26,7 @@ impl NotebookState {
     }
 
     fn fetch() -> Vec<String> {
-        nb::execute(["notebooks"])
-            .unwrap()
-            .lines()
-            .map(ToString::to_string)
-            .collect()
+        todo!()
     }
 
     pub fn refresh(&mut self) {
