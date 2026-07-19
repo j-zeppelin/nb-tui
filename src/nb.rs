@@ -1,14 +1,8 @@
 use std::collections::HashSet;
-use std::fs::{DirEntry, File};
+use std::fs::{self, DirEntry, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::{io, process::Command};
-
-use crossterm::execute;
-use crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
-};
-use ratatui::DefaultTerminal;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -22,7 +16,6 @@ pub enum NbError {
     NbFailure { args: String, stderr: String },
 }
 
-/// check if `nb` can be executed, otherwise return an [NbError]
 pub fn check_nb_available() -> Result<(), NbError> {
     Command::new("nb")
         .arg("--version")
@@ -31,46 +24,38 @@ pub fn check_nb_available() -> Result<(), NbError> {
     Ok(())
 }
 
-pub struct NbClient {
-    basepath: PathBuf,
+fn read_pindex(notebook_root: &Path) -> HashSet<String> {
+    let path = notebook_root.join(".pindex");
+    match fs::read_to_string(path) {
+        Ok(contents) => contents
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(String::from)
+            .collect(),
+        Err(_) => HashSet::new(),
+    }
 }
 
-impl NbClient {
-    pub fn default() -> Self {
-        Self {
-            basepath: PathBuf::from("~/.nb"),
-        }
-    }
+fn is_ignored(path: &Path) -> bool {
+    path.file_name().and_then(|n| n.to_str()).unwrap_or("") == ".git"
+}
 
-    /// execute `nb` with given args
-    /// expects `nb` return valid UTF-8
-    fn run(&self, args: &[&str]) -> Result<String, NbError> {
-        let output = Command::new("nb").args(args).output()?;
+pub fn scan_notebooks(notebook_root: &Path, current_dir: &Path) -> io::Result<Vec<NbItem>> {
+    let pinned = read_pindex(notebook_root);
 
-        if !output.status.success() {
-            return Err(NbError::NbFailure {
-                args: args.join(" "),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-            });
-        }
+    let mut entries: Vec<_> = fs::read_dir(current_dir)?
+        .filter_map(Result::ok)
+        .filter(|e| !is_ignored(&e.path()))
+        .collect();
 
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
+    entries.sort_by_key(|e| e.file_name());
 
-    pub fn open_in_editor(term: &mut DefaultTerminal, id: usize) -> io::Result<()> {
-        disable_raw_mode()?;
-        execute!(term.backend_mut(), LeaveAlternateScreen)?;
-
-        Command::new("nb")
-            .args(["edit", &id.to_string()])
-            .status()?;
-
-        enable_raw_mode()?;
-
-        execute!(term.backend_mut(), EnterAlternateScreen)?;
-        term.clear()?;
-        Ok(())
-    }
+    Ok(entries
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, entry)| NbItem::parse(i, entry, &pinned))
+        .collect())
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -84,6 +69,39 @@ pub enum NbItemKind {
     Document,
     Ebook,
     Folder,
+}
+
+impl NbItemKind {
+    pub fn from_ext(ext: &str) -> Self {
+        match ext.to_ascii_lowercase().as_str() {
+            // Text / note-like content
+            "md" | "markdown" | "txt" | "text" | "rst" | "adoc" | "org" | "rs" | "js" | "ts"
+            | "jsx" | "tsx" | "py" | "go" | "c" | "cpp" | "h" | "hpp" | "java" | "kt" | "rb"
+            | "php" | "sh" | "bash" | "fish" | "zsh" | "toml" | "yaml" | "yml" | "json" | "xml"
+            | "html" | "css" | "sql" | "lua" | "nix" | "vim" | "el" => NbItemKind::Note,
+
+            // Images
+            "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg" | "ico" | "tiff" | "heic" => {
+                NbItemKind::Image
+            }
+
+            // Audio
+            "mp3" | "wav" | "flac" | "ogg" | "m4a" | "aac" | "opus" => NbItemKind::Audio,
+
+            // Video
+            "mp4" | "mkv" | "mov" | "avi" | "webm" | "flv" | "wmv" => NbItemKind::Video,
+
+            // Documents
+            "pdf" | "doc" | "docx" | "odt" | "rtf" | "xls" | "xlsx" | "ppt" | "pptx" | "csv" => {
+                NbItemKind::Document
+            }
+
+            // Ebooks
+            "epub" | "mobi" | "azw" | "azw3" | "fb2" => NbItemKind::Ebook,
+
+            _ => NbItemKind::Note,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -127,9 +145,8 @@ impl NbItem {
                 .and_then(|e| e.to_str())
                 .unwrap_or("");
 
-            let kind = kind_for_extension(ext);
+            let kind = NbItemKind::from_ext(ext);
 
-            dbg!(filename);
             let title = match kind {
                 NbItemKind::Note if ext == "md" || ext == "markdown" => {
                     Self::note_info(File::open(&path).ok()?).unwrap_or_else(|| filename.to_string())
@@ -232,37 +249,6 @@ impl NbItem {
         }
 
         if title.is_empty() { None } else { Some(title) }
-    }
-}
-
-fn kind_for_extension(ext: &str) -> NbItemKind {
-    match ext.to_ascii_lowercase().as_str() {
-        // Text / note-like content
-        "md" | "markdown" | "txt" | "text" | "rst" | "adoc" | "org" | "rs" | "js" | "ts"
-        | "jsx" | "tsx" | "py" | "go" | "c" | "cpp" | "h" | "hpp" | "java" | "kt" | "rb"
-        | "php" | "sh" | "bash" | "fish" | "zsh" | "toml" | "yaml" | "yml" | "json" | "xml"
-        | "html" | "css" | "sql" | "lua" | "nix" | "vim" | "el" => NbItemKind::Note,
-
-        // Images
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg" | "ico" | "tiff" | "heic" => {
-            NbItemKind::Image
-        }
-
-        // Audio
-        "mp3" | "wav" | "flac" | "ogg" | "m4a" | "aac" | "opus" => NbItemKind::Audio,
-
-        // Video
-        "mp4" | "mkv" | "mov" | "avi" | "webm" | "flv" | "wmv" => NbItemKind::Video,
-
-        // Documents
-        "pdf" | "doc" | "docx" | "odt" | "rtf" | "xls" | "xlsx" | "ppt" | "pptx" | "csv" => {
-            NbItemKind::Document
-        }
-
-        // Ebooks
-        "epub" | "mobi" | "azw" | "azw3" | "fb2" => NbItemKind::Ebook,
-
-        _ => NbItemKind::Note,
     }
 }
 
