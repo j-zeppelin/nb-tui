@@ -1,5 +1,3 @@
-use std::{path::PathBuf, vec};
-
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
@@ -10,7 +8,6 @@ use crate::{
 
 pub struct ItemState {
     pub list_state: ListState,
-    pub current_folder: PathBuf,
     items: Vec<NbItem>,
     visible_indices: Vec<usize>,
 }
@@ -18,30 +15,15 @@ pub struct ItemState {
 impl ItemState {
     pub fn new() -> Self {
         Self {
-            current_folder: PathBuf::from("/"),
             items: Vec::new(),
             visible_indices: Vec::new(),
             list_state: ListState::default().with_selected(Some(0)),
         }
     }
 
-    pub fn set_items_from_str(&mut self, stdout: String) {
-        // self.items = stdout.lines().map_while(|l| NbItem::parse(l)).collect();
+    pub fn set_items(&mut self, items: Vec<NbItem>) {
+        self.items = items;
         self.list_state.select(Some(0));
-    }
-
-    pub fn ls_args(&self) -> Vec<String> {
-        let mut path = self.current_folder.to_path_buf();
-
-        if let Ok(stripped) = path.strip_prefix("/") {
-            path = stripped.to_path_buf();
-        }
-        let path = path.to_string_lossy() + "/";
-
-        vec!["ls", &path, "--no-header", "--no-footer", "-af"]
-            .iter()
-            .map(ToString::to_string)
-            .collect()
     }
 
     pub fn apply_filter(&mut self, query: &str) {
@@ -102,8 +84,7 @@ impl ItemState {
                 if let Some(selected) = self.list_state.selected() {
                     // go back to parent folder
                     if selected == 0 {
-                        self.current_folder.pop();
-                        return AppEvent::FolderOpened;
+                        return AppEvent::FolderBack;
                     }
 
                     let selected_item = self.visible().nth(selected.saturating_sub(1)).cloned();
@@ -111,8 +92,7 @@ impl ItemState {
                     if let Some(item) = selected_item {
                         match item.kind {
                             NbItemKind::Folder => {
-                                self.current_folder.push(&format!("{}", item.title));
-                                return AppEvent::FolderOpened;
+                                return AppEvent::FolderOpened(item.title);
                             }
                             _ => return AppEvent::OpenEditor(item.id),
                         }

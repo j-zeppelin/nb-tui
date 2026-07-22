@@ -27,7 +27,8 @@ pub enum AppEvent {
     NotebookSelected(String),
     QueryChanged,
     SearchSubmitted,
-    FolderOpened,
+    FolderOpened(String),
+    FolderBack,
     ItemRemoved(usize),
     FsChanged,
 }
@@ -80,24 +81,25 @@ impl App {
     }
 
     fn refresh_items(&mut self) {
-        // match nb::scan_folder(self.notebooks.current_notebook) {}
-        // todo
+        match nb::scan_folder(&self.nav.current_dir()) {
+            Ok(items) => {
+                self.items.set_items(items);
+                self.items.apply_filter(&self.search.query);
+            }
+            Err(_) => todo!(),
+        }
     }
 
-    pub fn poll_nb_events(&mut self) {
-        while let Ok((tag, result)) = self.nb_rx.try_recv() {
-            match tag {
-                NbTag::RefreshItems => match result {
-                    Ok(stdout) => {
-                        self.items.set_items_from_str(stdout);
-                        self.items.apply_filter(&self.search.query);
-                    }
-                    Err(_) => todo!(),
-                },
-                NbTag::RemoveItem => {
-                    self.refresh_items();
-                }
+    pub fn poll_fs_events(&mut self) {
+        let mut needs_refresh = false;
+        while let Ok(event) = self.fs_rx.try_recv() {
+            match event {
+                FsEvent::Changed => needs_refresh = true,
             }
+        }
+
+        if needs_refresh {
+            self.refresh_items();
         }
     }
 
@@ -134,21 +136,25 @@ impl App {
         match action {
             AppEvent::QueryChanged => {
                 self.items.apply_filter(&self.search.query);
-                AppEvent::None
             }
             AppEvent::SearchSubmitted => {
                 self.items.apply_filter(&self.search.query);
                 self.current_section = CurrentSection::Items;
-                AppEvent::None
             }
-            AppEvent::FolderOpened => {
+            AppEvent::FolderOpened(name) => {
+                self.nav.enter(&name);
                 self.search.clear();
                 self.refresh_items();
-
-                AppEvent::None
             }
-            AppEvent::ItemRemoved(id) => AppEvent::None,
-            other => other,
+            AppEvent::FolderBack => {
+                self.nav.go_back();
+                self.search.clear();
+                self.refresh_items();
+            }
+            other => {
+                return other;
+            }
         }
+        AppEvent::None
     }
 }

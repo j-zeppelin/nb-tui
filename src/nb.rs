@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 use std::{io, process::Command};
 use thiserror::Error;
 
+const IGNORED: &[&str; 4] = &[".git", ".cache", ".index", ".pindex"];
+
 #[derive(Error, Debug)]
 pub enum NbError {
     /// Error type for when `nb` cannot be executed for any reason
@@ -98,6 +100,14 @@ impl FolderNav {
     pub fn go_back(&mut self) -> bool {
         self.stack.pop().is_some()
     }
+
+    pub fn breadcrumbs(&self) -> Vec<String> {
+        self.stack
+            .iter()
+            .filter_map(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .collect()
+    }
 }
 
 // fs watcher
@@ -138,7 +148,7 @@ pub fn get_notebooks(nb_root: &Path) -> Vec<String> {
 
     entries
         .filter_map(Result::ok)
-        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false) && !is_ignored(&e.path()))
         .filter_map(|e| e.file_name().to_str().map(String::from))
         .collect()
 }
@@ -202,7 +212,7 @@ fn read_pindex(dir: &Path) -> HashSet<String> {
 fn is_ignored(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
-        .map(|n| n.starts_with(".git") || n.starts_with(".cache"))
+        .map(|n| IGNORED.contains(&n))
         .unwrap_or(false)
 }
 
