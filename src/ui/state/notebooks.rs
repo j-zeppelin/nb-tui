@@ -77,19 +77,18 @@ impl NotebookState {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 self.next();
-                AppEvent::None
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 self.previous();
-                AppEvent::None
             }
             KeyCode::Enter if self.switchable => match self.selected_name() {
                 Some(name) if name != self.current_notebook => {
-                    AppEvent::NotebookSelected(name.to_string())
+                    return AppEvent::NotebookSelected(name.to_string());
                 }
-                _ => AppEvent::None,
+                _ => {}
             },
-            _ => AppEvent::None,
+            _ => {}
         }
+        AppEvent::None
     }
 }

@@ -19,7 +19,7 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut NotebookState, focused: boo
             } else {
                 Style::default()
             };
-            ListItem::new(n.file_name().unwrap().to_str().unwrap()).style(style)
+            ListItem::new(n.clone()).style(style)
         })
         .collect();
 

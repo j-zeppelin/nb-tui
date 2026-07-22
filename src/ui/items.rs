@@ -6,9 +6,12 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
 
-use crate::ui::{self, state::items::ItemState};
+use crate::{
+    nb::FolderNav,
+    ui::{self, state::items::ItemState},
+};
 
-pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, focused: bool) {
+pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, nav: &FolderNav, focused: bool) {
     let border_style = ui::border_style(focused);
 
     let block = Block::new()
@@ -32,7 +35,7 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, focused: bool) {
     items.insert(
         0,
         ListItem::new(
-            Line::from(state.current_folder.to_string_lossy())
+            Line::from(nav.breadcrumbs().join("/"))
                 .style(Style::default().bold().fg(Color::Blue).dim()),
         ),
     );

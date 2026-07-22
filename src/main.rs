@@ -40,6 +40,6 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
             }
         }
 
-        app.poll_nb_events();
+        app.poll_fs_events();
     }
 }

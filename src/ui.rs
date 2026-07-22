@@ -42,6 +42,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
         f,
         right_chunks[1],
         &mut app.items,
+        &app.nav,
         matches!(app.current_section, CurrentSection::Items),
     );
 }
