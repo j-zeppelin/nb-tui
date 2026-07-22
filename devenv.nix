@@ -24,9 +24,10 @@
     nb add --filename note3.md --content "# pinned note with title"
     nb pin note3.md
     nb add folder folder
+    nb add folder/note.md --content "note inside a folder"
     nb todo add todo
     nb todo add todo2
     nb todo do todo2
-    nb bookmark https://www.google.com
+    # nb bookmark https://www.google.com
   '';
 }
