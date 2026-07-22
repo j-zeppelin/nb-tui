@@ -1,9 +1,12 @@
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::{
+    path::PathBuf,
+    sync::mpsc::{self, Receiver, Sender},
+};
 
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::{
-    nb::{self, NbError},
+    nb::{self, FolderNav, FsEvent, NbRoot},
     ui::state::{
         items::ItemState,
         notebooks::NotebookState,
@@ -21,10 +24,12 @@ pub enum AppEvent {
     None,
     Quit,
     OpenEditor(usize),
+    NotebookSelected(String),
     QueryChanged,
     SearchSubmitted,
     FolderOpened,
     ItemRemoved(usize),
+    FsChanged,
 }
 
 pub enum CurrentSection {
@@ -35,23 +40,39 @@ pub enum CurrentSection {
 
 pub struct App {
     pub current_section: CurrentSection,
+    pub nb_root: NbRoot,
+    pub nav: FolderNav,
     pub notebooks: NotebookState,
     pub items: ItemState,
     pub search: SearchState,
-    nb_tx: Sender<(NbTag, Result<String, NbError>)>,
-    nb_rx: Receiver<(NbTag, Result<String, NbError>)>,
+    fs_tx: Sender<FsEvent>,
+    fs_rx: Receiver<FsEvent>,
+    _watcher: notify::RecommendedWatcher,
 }
 
 impl App {
     pub fn default() -> Self {
-        let (nb_tx, nb_rx) = mpsc::channel();
+        let explicit_path = std::env::args().nth(1).map(PathBuf::from);
+        let (fs_tx, fs_rx) = mpsc::channel();
+
+        let nb_root = nb::NbRoot::resolve(explicit_path).expect("could not resolve nb root");
+        let nav = nb::FolderNav::new(nb_root.active_notebook_dir());
+
+        let watcher = nb::spawn_fs_watcher(nb_root.watcher_root(), fs_tx.clone())
+            .expect("failed to start fs watcher");
+
+        let notebooks = NotebookState::new(&nb_root);
+
         let mut app = Self {
             current_section: CurrentSection::Notebooks,
-            notebooks: NotebookState::new(),
+            nb_root,
+            nav,
+            notebooks,
             items: ItemState::new(),
             search: SearchState::new(),
-            nb_tx,
-            nb_rx,
+            fs_tx,
+            fs_rx,
+            _watcher: watcher,
         };
 
         app.refresh_items();
@@ -59,7 +80,8 @@ impl App {
     }
 
     fn refresh_items(&mut self) {
-        let args = self.items.ls_args();
+        // match nb::scan_folder(self.notebooks.current_notebook) {}
+        // todo
     }
 
     pub fn poll_nb_events(&mut self) {

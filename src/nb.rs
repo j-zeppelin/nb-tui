@@ -1,7 +1,10 @@
+use notify::Watcher;
 use std::collections::HashSet;
 use std::fs::{self, DirEntry, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
+use std::time::{Duration, Instant};
 use std::{io, process::Command};
 use thiserror::Error;
 
@@ -24,8 +27,167 @@ pub fn check_nb_available() -> Result<(), NbError> {
     Ok(())
 }
 
-fn read_pindex(notebook_root: &Path) -> HashSet<String> {
-    let path = notebook_root.join(".pindex");
+// nb root handling
+
+pub enum NbRoot {
+    Local(PathBuf),
+    Global(PathBuf),
+}
+
+impl NbRoot {
+    pub fn resolve(explicit: Option<PathBuf>) -> io::Result<Self> {
+        match explicit {
+            Some(path) => Ok(Self::Local(path)),
+            None => Ok(Self::Global(global_nb_dir()?)),
+        }
+    }
+
+    pub fn active_notebook_dir(&self) -> PathBuf {
+        match self {
+            NbRoot::Local(path) => path.clone(),
+            NbRoot::Global(root) => root.join(get_current_notebook(root)),
+        }
+    }
+
+    pub fn watcher_root(&self) -> &Path {
+        match self {
+            NbRoot::Local(path) => path,
+            NbRoot::Global(root) => root,
+        }
+    }
+}
+
+fn global_nb_dir() -> io::Result<PathBuf> {
+    std::env::home_dir()
+        .map(|home| home.join(".nb"))
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "could not find HOME directory"))
+}
+
+// folder navigation
+
+pub struct FolderNav {
+    base: PathBuf,
+    stack: Vec<PathBuf>,
+}
+
+impl FolderNav {
+    pub fn new(base: PathBuf) -> Self {
+        Self {
+            base,
+            stack: Vec::new(),
+        }
+    }
+
+    pub fn reset(&mut self, new_base: PathBuf) {
+        self.base = new_base;
+        self.stack.clear();
+    }
+
+    pub fn current_dir(&self) -> PathBuf {
+        match self.stack.last() {
+            Some(dir) => dir.clone(),
+            None => self.base.clone(),
+        }
+    }
+
+    pub fn enter(&mut self, folder_name: &str) {
+        let next = self.current_dir().join(folder_name);
+        self.stack.push(next);
+    }
+
+    pub fn go_back(&mut self) -> bool {
+        self.stack.pop().is_some()
+    }
+}
+
+// fs watcher
+
+pub enum FsEvent {
+    Changed,
+}
+
+pub fn spawn_fs_watcher(
+    nb_root: &Path,
+    tx: Sender<FsEvent>,
+) -> notify::Result<notify::RecommendedWatcher> {
+    let mut last_sent: Option<Instant> = None;
+    const DEBOUNCE: Duration = Duration::from_millis(150);
+
+    let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        let Ok(event) = res else { return };
+        if event.paths.iter().any(|p| is_ignored(p)) {
+            return;
+        }
+        let now = Instant::now();
+        if last_sent.map_or(true, |t| now.duration_since(t) > DEBOUNCE) {
+            last_sent = Some(now);
+            let _ = tx.send(FsEvent::Changed);
+        }
+    })?;
+
+    watcher.watch(nb_root, notify::RecursiveMode::Recursive)?;
+    Ok(watcher)
+}
+
+// notebook and note handling
+
+pub fn get_notebooks(nb_root: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(nb_root) else {
+        return Vec::new();
+    };
+
+    entries
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .filter_map(|e| e.file_name().to_str().map(String::from))
+        .collect()
+}
+
+pub fn scan_folder(dir: &Path) -> io::Result<Vec<NbItem>> {
+    let pinned = read_pindex(dir);
+
+    let mut entries: Vec<_> = fs::read_dir(dir)?
+        .filter_map(Result::ok)
+        .filter(|e| !is_ignored(&e.path()))
+        .collect();
+
+    entries.sort_by_key(|e| e.file_name());
+
+    Ok(entries
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, entry)| NbItem::parse(i, entry, &pinned))
+        .collect())
+}
+
+pub fn get_current_notebook(nb_root: &Path) -> String {
+    let path = nb_root.join(".current");
+
+    match fs::read_to_string(path) {
+        Ok(contents) => contents
+            .lines()
+            .next()
+            .unwrap_or(&get_first_notebook(nb_root))
+            .to_string(),
+        Err(_) => get_first_notebook(nb_root),
+    }
+}
+
+fn get_first_notebook(nb_root: &Path) -> String {
+    // home is the default notebook name of `nb`, hence we use "home"
+    // as the fallback
+    match fs::read_dir(nb_root) {
+        Ok(mut e) => match e.next() {
+            Some(Ok(entry)) => entry.file_name().to_string_lossy().into_owned(),
+            _ => "home".to_string(),
+        },
+
+        Err(_) => "home".to_string(),
+    }
+}
+
+fn read_pindex(dir: &Path) -> HashSet<String> {
+    let path = dir.join(".pindex");
     match fs::read_to_string(path) {
         Ok(contents) => contents
             .lines()
@@ -38,24 +200,10 @@ fn read_pindex(notebook_root: &Path) -> HashSet<String> {
 }
 
 fn is_ignored(path: &Path) -> bool {
-    path.file_name().and_then(|n| n.to_str()).unwrap_or("") == ".git"
-}
-
-pub fn scan_notebooks(notebook_root: &Path, current_dir: &Path) -> io::Result<Vec<NbItem>> {
-    let pinned = read_pindex(notebook_root);
-
-    let mut entries: Vec<_> = fs::read_dir(current_dir)?
-        .filter_map(Result::ok)
-        .filter(|e| !is_ignored(&e.path()))
-        .collect();
-
-    entries.sort_by_key(|e| e.file_name());
-
-    Ok(entries
-        .into_iter()
-        .enumerate()
-        .filter_map(|(i, entry)| NbItem::parse(i, entry, &pinned))
-        .collect())
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.starts_with(".git") || n.starts_with(".cache"))
+        .unwrap_or(false)
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -220,7 +368,6 @@ impl NbItem {
                     .trim()
                     .to_string();
             } else if buf.trim_start().starts_with('<') {
-                dbg!("help");
                 let end = buf.find('>')?;
 
                 url = buf.get(1..end)?.trim().to_string();
