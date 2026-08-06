@@ -1,6 +1,10 @@
-use std::time::Duration;
+use std::{io, process::Command, time::Duration};
 
-use crossterm::event::{self, Event};
+use crossterm::{
+    event::{self, Event},
+    execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+};
 use ratatui::DefaultTerminal;
 
 use crate::app::{App, AppEvent};
@@ -33,7 +37,10 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key_event) = event::read()? {
                 match app.handle_key_event(key_event) {
-                    AppEvent::OpenEditor(id) => {}
+                    AppEvent::OpenEditor(id) => {
+                        // TODO: handle error
+                        let _ = open_in_editor(&mut terminal, id);
+                    }
                     AppEvent::Quit => break Ok(()),
                     _ => {}
                 }
@@ -42,4 +49,19 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
 
         app.poll_fs_events();
     }
+}
+
+fn open_in_editor(term: &mut DefaultTerminal, id: usize) -> io::Result<()> {
+    disable_raw_mode()?;
+    execute!(term.backend_mut(), LeaveAlternateScreen)?;
+
+    Command::new("nb")
+        .args(["edit", &id.to_string()])
+        .status()?;
+
+    enable_raw_mode()?;
+
+    execute!(term.backend_mut(), EnterAlternateScreen)?;
+    term.clear()?;
+    Ok(())
 }

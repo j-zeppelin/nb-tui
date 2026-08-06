@@ -15,12 +15,7 @@ use crate::{
     },
 };
 
-#[derive(Clone, Copy, Debug)]
-pub enum NbTag {
-    RefreshItems,
-    RemoveItem,
-}
-
+#[allow(dead_code)]
 pub enum AppEvent {
     None,
     Quit,
@@ -40,6 +35,7 @@ pub enum CurrentSection {
     Search,
 }
 
+#[allow(dead_code)]
 pub struct App {
     pub current_section: CurrentSection,
     pub nb_root: NbRoot,
@@ -79,16 +75,6 @@ impl App {
 
         app.refresh_items();
         app
-    }
-
-    fn refresh_items(&mut self) {
-        match nb::scan_folder(&self.nav.current_dir()) {
-            Ok(items) => {
-                self.items.set_items(items);
-                self.items.apply_filter(&self.search.query);
-            }
-            Err(_) => todo!(),
-        }
     }
 
     pub fn poll_fs_events(&mut self) {
@@ -151,14 +137,27 @@ impl App {
                 self.refresh_items();
             }
             AppEvent::FolderBack => {
-                self.nav.go_back();
-                self.search.clear();
-                self.refresh_items();
+                if !self.nav.is_at_root() {
+                    self.nav.go_back();
+                    self.search.clear();
+                    self.refresh_items();
+                }
             }
+            AppEvent::OpenEditor(id) => return AppEvent::OpenEditor(id),
             other => {
                 return other;
             }
         }
         AppEvent::None
+    }
+
+    fn refresh_items(&mut self) {
+        match nb::scan_folder(&self.nav.current_dir()) {
+            Ok(items) => {
+                self.items.set_items(items);
+                self.items.apply_filter(&self.search.query);
+            }
+            Err(_) => todo!(),
+        }
     }
 }

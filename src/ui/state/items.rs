@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::ListState;
 
 use crate::{
-    app::AppEvent,
+    app::{App, AppEvent},
     nb::{NbItem, NbItemKind},
 };
 
@@ -79,6 +79,9 @@ impl ItemState {
                 {
                     return AppEvent::ItemRemoved(item.id);
                 };
+            }
+            KeyCode::Backspace => {
+                return AppEvent::FolderBack;
             }
             KeyCode::Enter => {
                 if let Some(selected) = self.list_state.selected() {
