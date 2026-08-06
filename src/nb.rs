@@ -1,5 +1,5 @@
-use notify::Watcher;
-use std::collections::HashSet;
+use notify::{EventKind, Watcher};
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, DirEntry, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -112,13 +112,9 @@ impl FolderNav {
 
 // fs watcher
 
-pub enum FsEvent {
-    Changed,
-}
-
 pub fn spawn_fs_watcher(
     nb_root: &Path,
-    tx: Sender<FsEvent>,
+    tx: Sender<EventKind>,
 ) -> notify::Result<notify::RecommendedWatcher> {
     let mut last_sent: Option<Instant> = None;
     const DEBOUNCE: Duration = Duration::from_millis(150);
@@ -131,7 +127,7 @@ pub fn spawn_fs_watcher(
         let now = Instant::now();
         if last_sent.map_or(true, |t| now.duration_since(t) > DEBOUNCE) {
             last_sent = Some(now);
-            let _ = tx.send(FsEvent::Changed);
+            let _ = tx.send(event.kind);
         }
     })?;
 
@@ -154,19 +150,12 @@ pub fn get_notebooks(nb_root: &Path) -> Vec<String> {
 }
 
 pub fn scan_folder(dir: &Path) -> io::Result<Vec<NbItem>> {
+    let index = read_index(dir);
     let pinned = read_pindex(dir);
 
-    let mut entries: Vec<_> = fs::read_dir(dir)?
-        .filter_map(Result::ok)
-        .filter(|e| !is_ignored(&e.path()))
-        .collect();
-
-    entries.sort_by_key(|e| e.file_name());
-
-    Ok(entries
+    Ok(index
         .into_iter()
-        .enumerate()
-        .filter_map(|(i, entry)| NbItem::parse(i, entry, &pinned))
+        .filter_map(|(i, entry)| NbItem::parse(i + 1, dir.join(entry), &pinned))
         .collect())
 }
 
@@ -206,6 +195,20 @@ fn read_pindex(dir: &Path) -> HashSet<String> {
             .map(String::from)
             .collect(),
         Err(_) => HashSet::new(),
+    }
+}
+
+fn read_index(dir: &Path) -> HashMap<usize, String> {
+    let path = dir.join(".index");
+    match fs::read_to_string(path) {
+        Ok(contents) => contents
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .enumerate()
+            .map(|(i, l)| (i, l.to_string()))
+            .collect(),
+        Err(_) => HashMap::new(),
     }
 }
 
@@ -272,24 +275,24 @@ pub struct NbItem {
 }
 
 impl NbItem {
-    pub fn parse(id: usize, entry: DirEntry, pinned: &HashSet<String>) -> Option<Self> {
-        let path = entry.path();
-        let file_type = entry.file_type().ok()?;
-        let filename = path.file_name()?.to_str()?;
+    pub fn parse(id: usize, entry: PathBuf, pinned: &HashSet<String>) -> Option<Self> {
+        let path = entry.clone();
+        let file_type = fs::metadata(entry).ok()?.file_type();
+        let file_name = path.file_name()?.to_str()?;
 
         if file_type.is_dir() {
             return Some(Self {
                 id,
-                title: filename.to_string(),
+                title: file_name.to_string(),
                 kind: NbItemKind::Folder,
-                pinned: pinned.contains(filename),
+                pinned: pinned.contains(file_name),
                 encrypted: false,
             });
         }
 
-        let encrypted = filename.ends_with(".enc");
-        let pinned = pinned.contains(filename);
-        let stripped_filename = filename.trim_end_matches(".enc");
+        let encrypted = file_name.ends_with(".enc");
+        let pinned = pinned.contains(file_name);
+        let stripped_filename = file_name.trim_end_matches(".enc");
 
         let kind_and_tile = if stripped_filename.ends_with(".todo.md") {
             let (title, done) = Self::todo_info(File::open(&path).ok()?)?;
@@ -307,9 +310,10 @@ impl NbItem {
 
             let title = match kind {
                 NbItemKind::Note if ext == "md" || ext == "markdown" => {
-                    Self::note_info(File::open(&path).ok()?).unwrap_or_else(|| filename.to_string())
+                    Self::note_info(File::open(&path).ok()?)
+                        .unwrap_or_else(|| file_name.to_string())
                 }
-                _ => filename.to_string(),
+                _ => file_name.to_string(),
             };
 
             Some((title, kind))
@@ -412,40 +416,18 @@ impl NbItem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
-    use std::fs;
-    use tempfile::tempdir;
-
-    /// Writes `content` to `dir/name` and returns the resulting DirEntry,
-    /// since DirEntry can't be constructed directly — it only comes from read_dir.
-    fn write_and_get_entry(dir: &std::path::Path, name: &str, content: &str) -> DirEntry {
-        fs::write(dir.join(name), content).unwrap();
-        fs::read_dir(dir)
-            .unwrap()
-            .find_map(|e| {
-                let e = e.ok()?;
-                (e.file_name().to_str() == Some(name)).then_some(e)
-            })
-            .unwrap_or_else(|| panic!("could not find written file {name}"))
-    }
-
-    fn mkdir_and_get_entry(dir: &std::path::Path, name: &str) -> DirEntry {
-        fs::create_dir(dir.join(name)).unwrap();
-        fs::read_dir(dir)
-            .unwrap()
-            .find_map(|e| {
-                let e = e.ok()?;
-                (e.file_name().to_str() == Some(name)).then_some(e)
-            })
-            .unwrap_or_else(|| panic!("could not find created dir {name}"))
-    }
+    use std::{collections::HashSet, io::Write};
+    use tempfile::{Builder, NamedTempFile};
 
     #[test]
     fn parses_folder() {
-        let dir = tempdir().unwrap();
-        let entry = mkdir_and_get_entry(dir.path(), "my-folder");
+        let dir = Builder::new()
+            .prefix("my-folder")
+            .rand_bytes(0)
+            .tempdir()
+            .unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        let item = NbItem::parse(0, dir.path().to_path_buf(), &HashSet::new()).unwrap();
 
         assert_eq!(item.title, "my-folder");
         assert_eq!(item.kind, NbItemKind::Folder);
@@ -455,25 +437,25 @@ mod tests {
 
     #[test]
     fn parses_pinned_folder() {
-        let dir = tempdir().unwrap();
-        let entry = mkdir_and_get_entry(dir.path(), "my-folder");
+        let dir = Builder::new()
+            .prefix("my-folder")
+            .rand_bytes(0)
+            .tempdir()
+            .unwrap();
         let pinned: HashSet<String> = ["my-folder".to_string()].into_iter().collect();
 
-        let item = NbItem::parse(0, entry, &pinned).unwrap();
+        let item = NbItem::parse(0, dir.path().to_path_buf(), &pinned).unwrap();
 
         assert!(item.pinned);
     }
 
     #[test]
     fn parses_undone_todo() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(
-            dir.path(),
-            "20240101000001.todo.md",
-            "# [ ] Water the plants\n",
-        );
+        let mut file = NamedTempFile::with_suffix(".todo.md").unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        file.write(b"# [ ] Water the plants\n").unwrap();
+
+        let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
         assert_eq!(item.title, "Water the plants");
         assert_eq!(item.kind, NbItemKind::Todo { done: false });
@@ -482,28 +464,23 @@ mod tests {
 
     #[test]
     fn parses_done_todo() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(
-            dir.path(),
-            "20240101000001.todo.md",
-            "# [x] Water the plants\n",
-        );
+        let mut file = NamedTempFile::with_suffix(".todo.md").unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        file.write(b"# [x] Water the plants\n").unwrap();
+
+        let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
         assert_eq!(item.kind, NbItemKind::Todo { done: true });
     }
 
     #[test]
     fn parses_bookmark() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(
-            dir.path(),
-            "20240101000001.bookmark.md",
-            "# Rust Docs (doc.rust-lang.org)\n\n<https://doc.rust-lang.org>",
-        );
+        let mut file = NamedTempFile::with_suffix(".bookmark.md").unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        file.write(b"# Rust Docs (doc.rust-lang.org)\n\n<https://doc.rust-lang.org>")
+            .unwrap();
+
+        let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
         assert_eq!(item.title, "Rust Docs");
         assert_eq!(
@@ -516,14 +493,12 @@ mod tests {
 
     #[test]
     fn parses_plain_note() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(
-            dir.path(),
-            "20240101000001.md",
-            "# Just a regular note\n\nSome body text.\n",
-        );
+        let mut file = NamedTempFile::with_suffix(".md").unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        file.write(b"# Just a regular note\n\nSome body text.\n")
+            .unwrap();
+
+        let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
         assert_eq!(item.title, "Just a regular note");
         assert_eq!(item.kind, NbItemKind::Note);
@@ -531,25 +506,29 @@ mod tests {
 
     #[test]
     fn note_without_heading_falls_back_to_filename() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(dir.path(), "20240101000001.md", "no heading here\n");
+        let mut file = NamedTempFile::with_suffix(".md").unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        file.write(b"no heading here\n").unwrap();
+        let file_name = file
+            .path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
 
-        assert_eq!(item.title, "20240101000001.md");
+        let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
+
+        assert_eq!(item.title, file_name);
         assert_eq!(item.kind, NbItemKind::Note);
     }
 
     #[test]
     fn parses_encrypted_todo() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(
-            dir.path(),
-            "20240101000001.todo.md.enc",
-            "# [ ] Secret task\n",
-        );
+        let mut file = NamedTempFile::with_suffix(".todo.md.enc").unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        file.write(b"# [ ] Secret task\n").unwrap();
+
+        let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
         assert!(item.encrypted);
         assert_eq!(item.title, "Secret task");
@@ -558,48 +537,66 @@ mod tests {
 
     #[test]
     fn classifies_source_file_as_note_using_filename_as_title() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(dir.path(), "20240101000001.rs", "fn main() {}\n");
+        let mut file = NamedTempFile::with_suffix(".rs").unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        file.write(b"fn main() {}\n").unwrap();
+        let file_name = file
+            .path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
 
-        // .rs isn't "md"/"markdown" so title should stay as the filename,
-        // not attempt heading extraction.
-        assert_eq!(item.title, "20240101000001.rs");
+        let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
+
+        assert_eq!(item.title, file_name);
         assert_eq!(item.kind, NbItemKind::Note);
     }
 
     #[test]
     fn classifies_image_extension() {
-        let dir = tempdir().unwrap();
-        // content doesn't need to be a real image for this parser, since
-        // image kind never opens/reads the file
-        let entry = write_and_get_entry(dir.path(), "20240101000001.png", "");
+        let file = NamedTempFile::with_suffix(".png").unwrap();
 
-        let item = NbItem::parse(0, entry, &HashSet::new()).unwrap();
+        // image kind never reads the file, so no write needed
+        let file_name = file
+            .path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
 
-        assert_eq!(item.title, "20240101000001.png");
+        let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
+
+        assert_eq!(item.title, file_name);
         assert_eq!(item.kind, NbItemKind::Image);
     }
 
     #[test]
     fn respects_pinned_set_for_files() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(dir.path(), "20240101000001.md", "# A note\n");
-        let pinned: HashSet<String> = ["20240101000001.md".to_string()].into_iter().collect();
+        let mut file = NamedTempFile::with_suffix(".md").unwrap();
 
-        let item = NbItem::parse(0, entry, &pinned).unwrap();
+        file.write(b"# A note\n").unwrap();
+        let file_name = file
+            .path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let pinned: HashSet<String> = [file_name].into_iter().collect();
+
+        let item = NbItem::parse(0, file.path().to_path_buf(), &pinned).unwrap();
 
         assert!(item.pinned);
     }
 
     #[test]
     fn unpinned_file_not_in_pindex() {
-        let dir = tempdir().unwrap();
-        let entry = write_and_get_entry(dir.path(), "20240101000001.md", "# A note\n");
+        let mut file = NamedTempFile::with_suffix(".md").unwrap();
+
+        file.write(b"# A note\n").unwrap();
         let pinned: HashSet<String> = ["some-other-file.md".to_string()].into_iter().collect();
 
-        let item = NbItem::parse(0, entry, &pinned).unwrap();
+        let item = NbItem::parse(0, file.path().to_path_buf(), &pinned).unwrap();
 
         assert!(!item.pinned);
     }
