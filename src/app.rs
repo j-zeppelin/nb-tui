@@ -4,9 +4,10 @@ use std::{
 };
 
 use crossterm::event::{KeyCode, KeyEvent};
+use notify::EventKind;
 
 use crate::{
-    nb::{self, FolderNav, FsEvent, NbRoot},
+    nb::{self, FolderNav, NbRoot},
     ui::state::{
         items::ItemState,
         notebooks::NotebookState,
@@ -46,8 +47,8 @@ pub struct App {
     pub notebooks: NotebookState,
     pub items: ItemState,
     pub search: SearchState,
-    fs_tx: Sender<FsEvent>,
-    fs_rx: Receiver<FsEvent>,
+    fs_tx: Sender<EventKind>,
+    fs_rx: Receiver<EventKind>,
     _watcher: notify::RecommendedWatcher,
 }
 
@@ -94,7 +95,10 @@ impl App {
         let mut needs_refresh = false;
         while let Ok(event) = self.fs_rx.try_recv() {
             match event {
-                FsEvent::Changed => needs_refresh = true,
+                EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(_) => {
+                    needs_refresh = true
+                }
+                _ => {}
             }
         }
 
