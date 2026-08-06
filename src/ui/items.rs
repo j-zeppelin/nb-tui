@@ -1,13 +1,13 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Style},
+    style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
 
 use crate::{
-    nb::FolderNav,
+    nb::{FolderNav, NbItemKind},
     ui::{self, state::items::ItemState},
 };
 
@@ -25,7 +25,14 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, nav: &FolderNav,
         .map(|i| {
             let line = Line::from(vec![
                 Span::styled(format!("[{}] ", i.id), Style::new().fg(Color::Green)),
-                Span::raw(i.title.clone()),
+                Span::styled(
+                    i.title.clone(),
+                    if i.kind == NbItemKind::Folder {
+                        Style::new().bold()
+                    } else {
+                        Style::new()
+                    },
+                ),
             ]);
 
             ListItem::new(line)
@@ -35,7 +42,7 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, nav: &FolderNav,
     items.insert(
         0,
         ListItem::new(
-            Line::from(nav.breadcrumbs().join("/"))
+            Line::from(format!("./{}", nav.breadcrumbs().join("/")))
                 .style(Style::default().bold().fg(Color::Blue).dim()),
         ),
     );

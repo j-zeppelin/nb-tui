@@ -101,6 +101,10 @@ impl FolderNav {
         self.stack.pop().is_some()
     }
 
+    pub fn is_at_root(&self) -> bool {
+        return self.stack.is_empty();
+    }
+
     pub fn breadcrumbs(&self) -> Vec<String> {
         self.stack
             .iter()
@@ -153,10 +157,12 @@ pub fn scan_folder(dir: &Path) -> io::Result<Vec<NbItem>> {
     let index = read_index(dir);
     let pinned = read_pindex(dir);
 
-    Ok(index
+    let mut items: Vec<_> = index
         .into_iter()
         .filter_map(|(i, entry)| NbItem::parse(i + 1, dir.join(entry), &pinned))
-        .collect())
+        .collect();
+
+    Ok(items)
 }
 
 pub fn get_current_notebook(nb_root: &Path) -> String {
