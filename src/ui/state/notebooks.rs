@@ -43,10 +43,10 @@ impl NotebookState {
         }
     }
 
-    pub fn refresh(&mut self, nb_root: &NbRoot) {
-        if let NbRoot::Global(root) = nb_root {
-            self.notebooks = nb::get_notebooks(root);
-        }
+    pub fn set_notebooks(&mut self, notebooks: Vec<String>, current: String) {
+        self.notebooks = notebooks.clone();
+        self.list_state
+            .select(notebooks.iter().position(|n| *n == current));
     }
 
     fn next(&mut self) {
