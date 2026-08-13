@@ -1,4 +1,5 @@
 use std::{
+    arch::x86_64::_mm256_castph_pd,
     path::PathBuf,
     sync::mpsc::{self, Receiver, Sender},
 };
@@ -56,7 +57,7 @@ impl App {
         let nb_root = nb::NbRoot::resolve(explicit_path).expect("could not resolve nb root");
         let nav = nb::FolderNav::new(nb_root.active_notebook_dir());
 
-        let watcher = nb::spawn_fs_watcher(nb_root.watcher_root(), fs_tx.clone())
+        let watcher = nb::spawn_fs_watcher(nb_root.global_root(), fs_tx.clone())
             .expect("failed to start fs watcher");
 
         let notebooks = NotebookState::new(&nb_root);
@@ -81,15 +82,17 @@ impl App {
         let mut needs_refresh = false;
         while let Ok(event) = self.fs_rx.try_recv() {
             match event {
-                EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(_) => {
-                    needs_refresh = true
-                }
+                EventKind::Create(_)
+                | EventKind::Remove(_)
+                | EventKind::Modify(_)
+                | EventKind::Access(_) => needs_refresh = true,
                 _ => {}
             }
         }
 
         if needs_refresh {
             self.refresh_items();
+            self.refresh_notebooks();
         }
     }
 
@@ -124,6 +127,17 @@ impl App {
         };
 
         match action {
+            AppEvent::NotebookSelected(notebook) => {
+                match nb::set_current_notebook(self.nb_root.global_root(), &notebook) {
+                    Ok(_) => {
+                        self.nav.reset(self.nb_root.global_root().join(&notebook));
+                        self.notebooks.current_notebook = notebook;
+                        self.refresh_items();
+                    }
+                    Err(_) => todo!(),
+                }
+            }
+
             AppEvent::QueryChanged => {
                 self.items.apply_filter(&self.search.query);
             }
@@ -159,5 +173,12 @@ impl App {
             }
             Err(_) => todo!(),
         }
+    }
+
+    fn refresh_notebooks(&mut self) {
+        let root = self.nb_root.global_root();
+        let notebooks = nb::get_notebooks(root);
+        self.notebooks
+            .set_notebooks(notebooks, nb::get_current_notebook(root));
     }
 }

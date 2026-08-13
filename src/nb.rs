@@ -51,7 +51,7 @@ impl NbRoot {
         }
     }
 
-    pub fn watcher_root(&self) -> &Path {
+    pub fn global_root(&self) -> &Path {
         match self {
             NbRoot::Local(path) => path,
             NbRoot::Global(root) => root,
@@ -143,7 +143,7 @@ pub fn spawn_fs_watcher(
 
 pub fn get_notebooks(nb_root: &Path) -> Vec<String> {
     let Ok(entries) = fs::read_dir(nb_root) else {
-        return Vec::new();
+        return vec!["home".to_string()];
     };
 
     entries
@@ -163,6 +163,11 @@ pub fn scan_folder(dir: &Path) -> io::Result<Vec<NbItem>> {
         .collect();
 
     Ok(items)
+}
+
+pub fn set_current_notebook(nb_root: &Path, notebook: &str) -> io::Result<()> {
+    let path = nb_root.join(".current");
+    fs::write(path, notebook)
 }
 
 pub fn get_current_notebook(nb_root: &Path) -> String {
