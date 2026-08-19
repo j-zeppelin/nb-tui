@@ -1,4 +1,5 @@
 use notify::{EventKind, Watcher};
+use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, DirEntry, File};
 use std::io::{BufRead, BufReader};
@@ -161,6 +162,14 @@ pub fn scan_folder(dir: &Path) -> io::Result<Vec<NbItem>> {
         .into_iter()
         .filter_map(|(i, entry)| NbItem::parse(i + 1, dir.join(entry), &pinned))
         .collect();
+
+    items.sort_by_key(|item| {
+        (
+            cmp::Reverse(item.pinned),
+            cmp::Reverse(matches!(item.kind, NbItemKind::Folder)),
+            item.title.clone(),
+        )
+    });
 
     Ok(items)
 }

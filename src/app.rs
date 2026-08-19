@@ -157,7 +157,6 @@ impl App {
                     self.refresh_items();
                 }
             }
-            AppEvent::OpenEditor(id) => return AppEvent::OpenEditor(id),
             other => {
                 return other;
             }
