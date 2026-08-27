@@ -1,7 +1,7 @@
 use notify::{EventKind, Watcher};
 use std::cmp;
 use std::collections::{HashMap, HashSet};
-use std::fs::{self, DirEntry, File};
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;

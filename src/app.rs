@@ -1,5 +1,4 @@
 use std::{
-    arch::x86_64::_mm256_castph_pd,
     path::PathBuf,
     sync::mpsc::{self, Receiver, Sender},
 };
@@ -7,7 +6,6 @@ use std::{
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
-    style::Style,
 };
 
 use crossterm::event::{KeyCode, KeyEvent};
@@ -17,12 +15,10 @@ use crate::{
     config::Config,
     nb::{self, FolderNav, NbRoot},
     ui::{
-        CurrentSection, Ui, items, notebooks, search,
-        state::{
-            items::ItemState,
-            notebooks::NotebookState,
-            search::{SearchMode, SearchState},
-        },
+        CurrentSection, Ui,
+        items::ItemPanel,
+        notebooks::NotebookPanel,
+        search::{SearchMode, SearchPanel},
     },
 };
 
@@ -44,9 +40,9 @@ pub enum AppEvent {
 pub struct App {
     pub nb_root: NbRoot,
     pub nav: FolderNav,
-    pub notebooks: NotebookState,
-    pub items: ItemState,
-    pub search: SearchState,
+    pub notebooks: NotebookPanel,
+    pub items: ItemPanel,
+    pub search: SearchPanel,
     pub ui: Ui,
     pub config: Config,
     fs_tx: Sender<EventKind>,
@@ -65,13 +61,13 @@ impl App {
         let watcher = nb::spawn_fs_watcher(nb_root.global_root(), fs_tx.clone())
             .expect("failed to start fs watcher");
 
-        let notebooks = NotebookState::new(&nb_root);
+        let notebooks = NotebookPanel::new(&nb_root);
 
         let mut app = Self {
             ui: Ui::default(),
             config: Config::load(),
-            items: ItemState::new(),
-            search: SearchState::new(),
+            items: ItemPanel::new(),
+            search: SearchPanel::new(),
             nb_root,
             nav,
             notebooks,
@@ -184,23 +180,21 @@ impl App {
             .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
             .split(right_chunk);
 
-        notebooks::render(
+        self.notebooks.render(
             f,
             left_chunk,
-            &mut self.notebooks,
             matches!(self.ui.current_section, CurrentSection::Notebooks),
         );
 
-        search::render(
+        self.search.render(
             f,
             right_chunks[0],
-            &mut self.search,
             matches!(self.ui.current_section, CurrentSection::Search),
         );
-        items::render(
+
+        self.items.render(
             f,
             right_chunks[1],
-            &mut self.items,
             &self.nav,
             &self.config,
             matches!(self.ui.current_section, CurrentSection::Items),

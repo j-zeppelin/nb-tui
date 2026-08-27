@@ -13,7 +13,6 @@
   enterShell = ''
     rustc --version
     git --version
-    reset-nb
   '';
 
   scripts.reset-nb.exec = ''
