@@ -7,11 +7,19 @@ use ratatui::{
 };
 
 use crate::{
+    config::{self, Config},
     nb::{FolderNav, NbItemKind},
     ui::{self, state::items::ItemState},
 };
 
-pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, nav: &FolderNav, focused: bool) {
+pub fn render(
+    f: &mut Frame,
+    area: Rect,
+    state: &mut ItemState,
+    nav: &FolderNav,
+    config: &Config,
+    focused: bool,
+) {
     let border_style = ui::border_style(focused);
 
     let block = Block::new()
@@ -23,10 +31,29 @@ pub fn render(f: &mut Frame, area: Rect, state: &mut ItemState, nav: &FolderNav,
     let mut items: Vec<ListItem> = state
         .visible()
         .map(|i| {
+            let mut label = String::new();
+
+            if i.pinned {
+                label.push_str(config.indicators.pinned());
+                label.push(' ');
+            }
+
+            if i.encrypted {
+                label.push_str(config.indicators.encrypted());
+                label.push(' ');
+            }
+
+            label.push_str(config.indicators.for_kind(&i.kind));
+            if !matches!(i.kind, NbItemKind::Note) {
+                label.push(' ');
+            }
+
+            label.push_str(&i.title);
+
             let line = Line::from(vec![
-                Span::styled(format!("[{}] ", i.id), Style::new().fg(Color::Green)),
+                Span::styled(format!("[{}] ", i.id), Style::default().green()),
                 Span::styled(
-                    i.title.clone(),
+                    label,
                     if i.kind == NbItemKind::Folder {
                         Style::new().bold()
                     } else {

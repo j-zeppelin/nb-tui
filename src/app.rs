@@ -4,15 +4,25 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
+use ratatui::{
+    Frame,
+    layout::{Constraint, Direction, Layout},
+    style::Style,
+};
+
 use crossterm::event::{KeyCode, KeyEvent};
 use notify::EventKind;
 
 use crate::{
+    config::Config,
     nb::{self, FolderNav, NbRoot},
-    ui::state::{
-        items::ItemState,
-        notebooks::NotebookState,
-        search::{SearchMode, SearchState},
+    ui::{
+        CurrentSection, Ui, items, notebooks, search,
+        state::{
+            items::ItemState,
+            notebooks::NotebookState,
+            search::{SearchMode, SearchState},
+        },
     },
 };
 
@@ -30,20 +40,15 @@ pub enum AppEvent {
     FsChanged,
 }
 
-pub enum CurrentSection {
-    Notebooks,
-    Items,
-    Search,
-}
-
 #[allow(dead_code)]
 pub struct App {
-    pub current_section: CurrentSection,
     pub nb_root: NbRoot,
     pub nav: FolderNav,
     pub notebooks: NotebookState,
     pub items: ItemState,
     pub search: SearchState,
+    pub ui: Ui,
+    pub config: Config,
     fs_tx: Sender<EventKind>,
     fs_rx: Receiver<EventKind>,
     _watcher: notify::RecommendedWatcher,
@@ -63,12 +68,13 @@ impl App {
         let notebooks = NotebookState::new(&nb_root);
 
         let mut app = Self {
-            current_section: CurrentSection::Notebooks,
+            ui: Ui::default(),
+            config: Config::load(),
+            items: ItemState::new(),
+            search: SearchState::new(),
             nb_root,
             nav,
             notebooks,
-            items: ItemState::new(),
-            search: SearchState::new(),
             fs_tx,
             fs_rx,
             _watcher: watcher,
@@ -101,15 +107,15 @@ impl App {
             // global key binds
             match key.code {
                 KeyCode::Char('b') => {
-                    self.current_section = CurrentSection::Notebooks;
+                    self.ui.current_section = CurrentSection::Notebooks;
                     return AppEvent::None;
                 }
                 KeyCode::Char('n') => {
-                    self.current_section = CurrentSection::Items;
+                    self.ui.current_section = CurrentSection::Items;
                     return AppEvent::None;
                 }
                 KeyCode::Char('s') => {
-                    self.current_section = CurrentSection::Search;
+                    self.ui.current_section = CurrentSection::Search;
                     self.search.mode = SearchMode::Editing;
                     return AppEvent::None;
                 }
@@ -120,7 +126,7 @@ impl App {
             }
         }
 
-        let action = match self.current_section {
+        let action = match self.ui.current_section {
             CurrentSection::Notebooks => self.notebooks.handle_key(key),
             CurrentSection::Items => self.items.handle_key(key),
             CurrentSection::Search => self.search.handle_key(key),
@@ -143,7 +149,7 @@ impl App {
             }
             AppEvent::SearchSubmitted => {
                 self.items.apply_filter(&self.search.query);
-                self.current_section = CurrentSection::Items;
+                self.ui.current_section = CurrentSection::Items;
             }
             AppEvent::FolderOpened(name) => {
                 self.nav.enter(&name);
@@ -162,6 +168,43 @@ impl App {
             }
         }
         AppEvent::None
+    }
+
+    pub fn render(&mut self, f: &mut Frame) {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(10), Constraint::Min(1)].as_ref())
+            .split(f.area());
+
+        let left_chunk = chunks[0];
+        let right_chunk = chunks[1];
+
+        let right_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
+            .split(right_chunk);
+
+        notebooks::render(
+            f,
+            left_chunk,
+            &mut self.notebooks,
+            matches!(self.ui.current_section, CurrentSection::Notebooks),
+        );
+
+        search::render(
+            f,
+            right_chunks[0],
+            &mut self.search,
+            matches!(self.ui.current_section, CurrentSection::Search),
+        );
+        items::render(
+            f,
+            right_chunks[1],
+            &mut self.items,
+            &self.nav,
+            &self.config,
+            matches!(self.ui.current_section, CurrentSection::Items),
+        );
     }
 
     fn refresh_items(&mut self) {

@@ -10,6 +10,7 @@ use ratatui::DefaultTerminal;
 use crate::app::{App, AppEvent};
 
 mod app;
+mod config;
 mod nb;
 mod ui;
 
@@ -32,7 +33,7 @@ fn main() -> color_eyre::Result<()> {
 
 fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
     loop {
-        terminal.draw(|frame| ui::render(frame, app))?;
+        terminal.draw(|frame| app.render(frame))?;
 
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key_event) = event::read()? {

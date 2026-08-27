@@ -4,47 +4,27 @@ use ratatui::{
     style::Style,
 };
 
-use crate::app::{App, CurrentSection};
-
 pub mod items;
 pub mod notebooks;
 pub mod search;
 pub mod state;
 
-pub fn render(f: &mut Frame, app: &mut App) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(10), Constraint::Min(1)].as_ref())
-        .split(f.area());
+pub enum CurrentSection {
+    Notebooks,
+    Items,
+    Search,
+}
 
-    let left_chunk = chunks[0];
-    let right_chunk = chunks[1];
+pub struct Ui {
+    pub current_section: CurrentSection,
+}
 
-    let right_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
-        .split(right_chunk);
-
-    notebooks::render(
-        f,
-        left_chunk,
-        &mut app.notebooks,
-        matches!(app.current_section, CurrentSection::Notebooks),
-    );
-
-    search::render(
-        f,
-        right_chunks[0],
-        &mut app.search,
-        matches!(app.current_section, CurrentSection::Search),
-    );
-    items::render(
-        f,
-        right_chunks[1],
-        &mut app.items,
-        &app.nav,
-        matches!(app.current_section, CurrentSection::Items),
-    );
+impl Ui {
+    pub fn default() -> Self {
+        Ui {
+            current_section: CurrentSection::Notebooks,
+        }
+    }
 }
 
 pub fn border_style(focused: bool) -> Style {
