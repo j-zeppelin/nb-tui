@@ -1,8 +1,14 @@
 use ratatui::{
+    buffer::Buffer,
+    layout::{Constraint, Rect},
     style::Style,
     text::Line,
-    widgets::{Block, Borders, Clear, Widget},
+    widgets::{Block, BorderType, Borders, Clear, Widget},
 };
+
+use crate::ui::popups::error::ErrorPopup;
+
+pub mod error;
 
 #[derive(Debug, Default)]
 struct Popup<W: Widget> {
@@ -31,7 +37,7 @@ impl<W: Widget> Popup<W> {
 }
 
 impl<W: Widget> Widget for Popup<W> {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
+    fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
     {
@@ -41,11 +47,32 @@ impl<W: Widget> Widget for Popup<W> {
             .title_style(self.title_style)
             .borders(Borders::ALL)
             .border_style(self.border_style)
+            .border_type(BorderType::Rounded)
             .style(self.style);
 
         let inner = block.inner(area);
         block.render(area, buf);
         self.content.render(inner, buf);
+    }
+}
+
+pub fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rect {
+    area.centered(
+        Constraint::Percentage(width_percent),
+        Constraint::Percentage(height_percent),
+    )
+}
+
+pub enum Overlay {
+    None,
+    Error(ErrorPopup),
+    Confirm,
+    NewNote,
+}
+
+impl Overlay {
+    pub fn is_active(&self) -> bool {
+        !matches!(self, Overlay::None)
     }
 }
 

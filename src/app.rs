@@ -18,6 +18,7 @@ use crate::{
         CurrentSection, Ui,
         items::ItemPanel,
         notebooks::NotebookPanel,
+        popups::{Overlay, OverlayAction},
         search::{SearchMode, SearchPanel},
     },
 };
@@ -99,6 +100,10 @@ impl App {
     }
 
     pub fn handle_key_event(&mut self, key: KeyEvent) -> AppEvent {
+        if self.ui.overlay.is_active() {
+            return self.handle_overlay_key(key);
+        }
+
         if !self.search.wants_raw_input() {
             // global key binds
             match key.code {
@@ -136,7 +141,7 @@ impl App {
                         self.notebooks.current_notebook = notebook;
                         self.refresh_items();
                     }
-                    Err(_) => todo!(),
+                    Err(err) => self.ui.display_err(err.to_string()),
                 }
             }
 
@@ -199,6 +204,13 @@ impl App {
             &self.config,
             matches!(self.ui.current_section, CurrentSection::Items),
         );
+
+        match &self.ui.overlay {
+            Overlay::None => {}
+            Overlay::Error(error_popup) => error_popup.render(f, f.area()),
+            Overlay::Confirm => todo!(),
+            Overlay::NewNote => todo!(),
+        }
     }
 
     fn refresh_items(&mut self) {
@@ -207,7 +219,7 @@ impl App {
                 self.items.set_items(items);
                 self.items.apply_filter(&self.search.query);
             }
-            Err(_) => todo!(),
+            Err(err) => self.ui.display_err(err.to_string()),
         }
     }
 
@@ -216,5 +228,24 @@ impl App {
         let notebooks = nb::get_notebooks(root);
         self.notebooks
             .set_notebooks(notebooks, nb::get_current_notebook(root));
+    }
+
+    fn handle_overlay_key(&mut self, key: KeyEvent) -> AppEvent {
+        let action = match &mut self.ui.overlay {
+            Overlay::Error(error_popup) => error_popup.handle_key(key),
+            Overlay::Confirm => todo!(),
+            Overlay::NewNote => todo!(),
+            Overlay::None => unreachable!(),
+        };
+
+        match action {
+            OverlayAction::Close => self.ui.close_overlay(),
+            OverlayAction::Confirm(confirm_action) => {
+                self.ui.close_overlay();
+                // TODO handle confirm
+            }
+            OverlayAction::None => {}
+        }
+        return AppEvent::None;
     }
 }

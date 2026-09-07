@@ -1,5 +1,7 @@
 use ratatui::style::Style;
 
+use crate::ui::popups::{Overlay, error::ErrorPopup};
+
 pub mod items;
 pub mod notebooks;
 pub mod popups;
@@ -23,6 +25,14 @@ impl Ui {
             overlay: Overlay::None,
         }
     }
+
+    pub fn display_err(&mut self, message: String) {
+        self.overlay = Overlay::Error(ErrorPopup { message })
+    }
+
+    pub fn close_overlay(&mut self) {
+        self.overlay = Overlay::None;
+    }
 }
 
 pub fn border_style(focused: bool) -> Style {
@@ -30,18 +40,5 @@ pub fn border_style(focused: bool) -> Style {
         Style::new().blue()
     } else {
         Style::new().blue().dim()
-    }
-}
-
-pub enum Overlay {
-    None,
-    Error,
-    Confirm,
-    NewNote,
-}
-
-impl Overlay {
-    pub fn is_active(&self) -> bool {
-        !matches!(self, Overlay::None)
     }
 }
