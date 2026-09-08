@@ -16,7 +16,7 @@ use crate::{
 
 pub struct ItemPanel {
     pub list_state: ListState,
-    items: Vec<NbItem>,
+    pub items: Vec<NbItem>,
     visible_indices: Vec<usize>,
 }
 
@@ -80,12 +80,12 @@ impl ItemPanel {
             KeyCode::Char('k') | KeyCode::Up => {
                 self.previous();
             }
-            KeyCode::Char('x') => {
+            KeyCode::Char('x') | KeyCode::Char('d') => {
                 if let Some(idx) = self.list_state.selected()
                     && idx != 0
                     && let Some(item) = self.items.get(idx.saturating_sub(1))
                 {
-                    return AppEvent::ItemRemoved(item.id);
+                    return AppEvent::RequestDelete(item.id);
                 };
             }
             KeyCode::Backspace => {

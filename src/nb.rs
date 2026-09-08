@@ -11,6 +11,8 @@ use thiserror::Error;
 
 const IGNORED: &[&str; 4] = &[".git", ".cache", ".index", ".pindex"];
 
+// nb calls
+
 #[derive(Error, Debug)]
 pub enum NbError {
     /// Error type for when `nb` cannot be executed for any reason
@@ -20,6 +22,24 @@ pub enum NbError {
     /// Error type for when `nb` itself fails
     #[error("nb {args}: {stderr}")]
     NbFailure { args: String, stderr: String },
+}
+
+pub fn remove_item(id: usize) -> Result<(), NbError> {
+    let output = Command::new("nb")
+        .arg("rm")
+        .arg(id.to_string())
+        .arg("--force")
+        .output()
+        .map_err(NbError::ExecutionFailure)?;
+
+    if !output.status.success() {
+        return Err(NbError::NbFailure {
+            args: format!("rm {id}"),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        });
+    }
+
+    Ok(())
 }
 
 pub fn check_nb_available() -> Result<(), NbError> {
@@ -154,7 +174,7 @@ pub fn get_notebooks(nb_root: &Path) -> Vec<String> {
         .collect()
 }
 
-pub fn scan_folder(dir: &Path) -> io::Result<Vec<NbItem>> {
+pub fn scan_folder(dir: &Path) -> Vec<NbItem> {
     let index = read_index(dir);
     let pinned = read_pindex(dir);
 
@@ -171,7 +191,7 @@ pub fn scan_folder(dir: &Path) -> io::Result<Vec<NbItem>> {
         )
     });
 
-    Ok(items)
+    items
 }
 
 pub fn set_current_notebook(nb_root: &Path, notebook: &str) -> io::Result<()> {
@@ -214,6 +234,7 @@ fn read_pindex(dir: &Path) -> HashSet<String> {
             .filter(|l| !l.is_empty())
             .map(String::from)
             .collect(),
+        // maybe create .pindex manually in the future
         Err(_) => HashSet::new(),
     }
 }
@@ -228,6 +249,7 @@ fn read_index(dir: &Path) -> HashMap<usize, String> {
             .enumerate()
             .map(|(i, l)| (i, l.to_string()))
             .collect(),
+        // maybe create .index manually in the future
         Err(_) => HashMap::new(),
     }
 }
@@ -289,6 +311,7 @@ impl NbItemKind {
 pub struct NbItem {
     pub id: usize,
     pub title: String,
+    pub filename: String,
     pub kind: NbItemKind,
     pub pinned: bool,
     pub encrypted: bool,
@@ -304,6 +327,7 @@ impl NbItem {
             return Some(Self {
                 id,
                 title: file_name.to_string(),
+                filename: file_name.to_string(),
                 kind: NbItemKind::Folder,
                 pinned: pinned.contains(file_name),
                 encrypted: false,
@@ -344,6 +368,7 @@ impl NbItem {
         Some(Self {
             id,
             title,
+            filename: file_name.to_string(),
             kind,
             pinned,
             encrypted,

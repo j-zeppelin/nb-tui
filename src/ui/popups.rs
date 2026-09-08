@@ -6,8 +6,9 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 
-use crate::ui::popups::error::ErrorPopup;
+use crate::ui::popups::{confirm::ConfirmPopup, error::ErrorPopup};
 
+pub mod confirm;
 pub mod error;
 
 #[derive(Debug, Default)]
@@ -66,7 +67,7 @@ pub fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rec
 pub enum Overlay {
     None,
     Error(ErrorPopup),
-    Confirm,
+    Confirm(ConfirmPopup),
     NewNote,
 }
 

@@ -18,7 +18,7 @@ use crate::{
         CurrentSection, Ui,
         items::ItemPanel,
         notebooks::NotebookPanel,
-        popups::{Overlay, OverlayAction},
+        popups::{ConfirmAction, Overlay, OverlayAction, confirm::ConfirmPopup},
         search::{SearchMode, SearchPanel},
     },
 };
@@ -28,12 +28,12 @@ pub enum AppEvent {
     None,
     Quit,
     OpenEditor(usize),
+    RequestDelete(usize),
     NotebookSelected(String),
     QueryChanged,
     SearchSubmitted,
     FolderOpened(String),
     FolderBack,
-    ItemRemoved(usize),
     FsChanged,
 }
 
@@ -41,9 +41,9 @@ pub enum AppEvent {
 pub struct App {
     pub nb_root: NbRoot,
     pub nav: FolderNav,
-    pub notebooks: NotebookPanel,
-    pub items: ItemPanel,
-    pub search: SearchPanel,
+    pub notebook_panel: NotebookPanel,
+    pub item_panel: ItemPanel,
+    pub search_panel: SearchPanel,
     pub ui: Ui,
     pub config: Config,
     fs_tx: Sender<EventKind>,
@@ -62,16 +62,16 @@ impl App {
         let watcher = nb::spawn_fs_watcher(nb_root.global_root(), fs_tx.clone())
             .expect("failed to start fs watcher");
 
-        let notebooks = NotebookPanel::new(&nb_root);
+        let notebook_panel = NotebookPanel::new(&nb_root);
 
         let mut app = Self {
             ui: Ui::default(),
             config: Config::load(),
-            items: ItemPanel::new(),
-            search: SearchPanel::new(),
+            item_panel: ItemPanel::new(),
+            search_panel: SearchPanel::new(),
             nb_root,
             nav,
-            notebooks,
+            notebook_panel,
             fs_tx,
             fs_rx,
             _watcher: watcher,
@@ -104,7 +104,7 @@ impl App {
             return self.handle_overlay_key(key);
         }
 
-        if !self.search.wants_raw_input() {
+        if !self.search_panel.wants_raw_input() {
             // global key binds
             match key.code {
                 KeyCode::Char('b') => {
@@ -117,7 +117,7 @@ impl App {
                 }
                 KeyCode::Char('s') => {
                     self.ui.current_section = CurrentSection::Search;
-                    self.search.mode = SearchMode::Editing;
+                    self.search_panel.mode = SearchMode::Editing;
                     return AppEvent::None;
                 }
                 KeyCode::Esc | KeyCode::Char('q') => {
@@ -128,17 +128,17 @@ impl App {
         }
 
         let action = match self.ui.current_section {
-            CurrentSection::Notebooks => self.notebooks.handle_key(key),
-            CurrentSection::Items => self.items.handle_key(key),
-            CurrentSection::Search => self.search.handle_key(key),
+            CurrentSection::Notebooks => self.notebook_panel.handle_key(key),
+            CurrentSection::Items => self.item_panel.handle_key(key),
+            CurrentSection::Search => self.search_panel.handle_key(key),
         };
 
         match action {
             AppEvent::NotebookSelected(notebook) => {
                 match nb::set_current_notebook(self.nb_root.global_root(), &notebook) {
-                    Ok(_) => {
+                    Ok(..) => {
                         self.nav.reset(self.nb_root.global_root().join(&notebook));
-                        self.notebooks.current_notebook = notebook;
+                        self.notebook_panel.current_notebook = notebook;
                         self.refresh_items();
                     }
                     Err(err) => self.ui.display_err(err.to_string()),
@@ -146,22 +146,36 @@ impl App {
             }
 
             AppEvent::QueryChanged => {
-                self.items.apply_filter(&self.search.query);
+                self.item_panel.apply_filter(&self.search_panel.query);
             }
             AppEvent::SearchSubmitted => {
-                self.items.apply_filter(&self.search.query);
+                self.item_panel.apply_filter(&self.search_panel.query);
                 self.ui.current_section = CurrentSection::Items;
             }
             AppEvent::FolderOpened(name) => {
                 self.nav.enter(&name);
-                self.search.clear();
+                self.search_panel.clear();
                 self.refresh_items();
             }
             AppEvent::FolderBack => {
                 if !self.nav.is_at_root() {
                     self.nav.go_back();
-                    self.search.clear();
+                    self.search_panel.clear();
                     self.refresh_items();
+                }
+            }
+            AppEvent::RequestDelete(id) => {
+                let item = self.item_panel.items.iter().find(|i| i.id == id);
+
+                if let Some(item) = item {
+                    self.ui.overlay = Overlay::Confirm(ConfirmPopup {
+                        message: format!("Delete {} ({})?", item.title, item.filename),
+                        selected: crate::ui::popups::confirm::Choice::No,
+                        on_confirm: ConfirmAction::DeleteItem(item.id),
+                    })
+                } else {
+                    self.ui
+                        .display_err(format!("Could not find item with id {}!", id));
                 }
             }
             other => {
@@ -185,19 +199,19 @@ impl App {
             .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
             .split(right_chunk);
 
-        self.notebooks.render(
+        self.notebook_panel.render(
             f,
             left_chunk,
             matches!(self.ui.current_section, CurrentSection::Notebooks),
         );
 
-        self.search.render(
+        self.search_panel.render(
             f,
             right_chunks[0],
             matches!(self.ui.current_section, CurrentSection::Search),
         );
 
-        self.items.render(
+        self.item_panel.render(
             f,
             right_chunks[1],
             &self.nav,
@@ -208,32 +222,36 @@ impl App {
         match &self.ui.overlay {
             Overlay::None => {}
             Overlay::Error(error_popup) => error_popup.render(f, f.area()),
-            Overlay::Confirm => todo!(),
+            Overlay::Confirm(confirm_popup) => confirm_popup.render(f, f.area()),
             Overlay::NewNote => todo!(),
         }
     }
 
     fn refresh_items(&mut self) {
-        match nb::scan_folder(&self.nav.current_dir()) {
-            Ok(items) => {
-                self.items.set_items(items);
-                self.items.apply_filter(&self.search.query);
-            }
-            Err(err) => self.ui.display_err(err.to_string()),
+        let items = nb::scan_folder(&self.nav.current_dir());
+        self.item_panel.set_items(items);
+        self.item_panel.apply_filter(&self.search_panel.query);
+    }
+
+    fn remove_item(&mut self, id: usize) {
+        if let Err(err) = nb::remove_item(id) {
+            self.ui.display_err(err.to_string());
+        } else {
+            self.refresh_items();
         }
     }
 
     fn refresh_notebooks(&mut self) {
         let root = self.nb_root.global_root();
         let notebooks = nb::get_notebooks(root);
-        self.notebooks
+        self.notebook_panel
             .set_notebooks(notebooks, nb::get_current_notebook(root));
     }
 
     fn handle_overlay_key(&mut self, key: KeyEvent) -> AppEvent {
         let action = match &mut self.ui.overlay {
             Overlay::Error(error_popup) => error_popup.handle_key(key),
-            Overlay::Confirm => todo!(),
+            Overlay::Confirm(confirm_popup) => confirm_popup.handle_key(key),
             Overlay::NewNote => todo!(),
             Overlay::None => unreachable!(),
         };
@@ -242,8 +260,17 @@ impl App {
             OverlayAction::Close => self.ui.close_overlay(),
             OverlayAction::Confirm(confirm_action) => {
                 self.ui.close_overlay();
-                // TODO handle confirm
+
+                match confirm_action {
+                    ConfirmAction::DeleteItem(id) => self.remove_item(id),
+                    ConfirmAction::CreateNote {
+                        name,
+                        encrypted,
+                        pinned,
+                    } => todo!(),
+                }
             }
+
             OverlayAction::None => {}
         }
         return AppEvent::None;

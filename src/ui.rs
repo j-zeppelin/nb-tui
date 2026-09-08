@@ -1,6 +1,6 @@
 use ratatui::style::Style;
 
-use crate::ui::popups::{Overlay, error::ErrorPopup};
+use crate::ui::popups::{ConfirmAction, Overlay, confirm::ConfirmPopup, error::ErrorPopup};
 
 pub mod items;
 pub mod notebooks;
