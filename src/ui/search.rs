@@ -125,6 +125,8 @@ impl SearchPanel {
 
         match self.mode {
             SearchMode::Navigating => {}
+
+            #[allow(clippy::cast_possible_truncation)]
             SearchMode::Editing => f.set_cursor_position(Position::new(
                 area.x + self.character_idx as u16 + 1,
                 area.y + 1,

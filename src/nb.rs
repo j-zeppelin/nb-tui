@@ -123,7 +123,7 @@ impl FolderNav {
     }
 
     pub fn is_at_root(&self) -> bool {
-        return self.stack.is_empty();
+        self.stack.is_empty()
     }
 
     pub fn breadcrumbs(&self) -> Vec<String> {
@@ -141,8 +141,9 @@ pub fn spawn_fs_watcher(
     nb_root: &Path,
     tx: Sender<EventKind>,
 ) -> notify::Result<notify::RecommendedWatcher> {
-    let mut last_sent: Option<Instant> = None;
     const DEBOUNCE: Duration = Duration::from_millis(150);
+
+    let mut last_sent: Option<Instant> = None;
 
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         let Ok(event) = res else { return };
@@ -150,7 +151,7 @@ pub fn spawn_fs_watcher(
             return;
         }
         let now = Instant::now();
-        if last_sent.map_or(true, |t| now.duration_since(t) > DEBOUNCE) {
+        if last_sent.is_none_or(|t| now.duration_since(t) > DEBOUNCE) {
             last_sent = Some(now);
             let _ = tx.send(event.kind);
         }
@@ -169,7 +170,10 @@ pub fn get_notebooks(nb_root: &Path) -> Vec<String> {
 
     entries
         .filter_map(Result::ok)
-        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false) && !is_ignored(&e.path()))
+        .filter(|e| {
+            e.file_type()
+                .is_ok_and(|t| t.is_dir() && !is_ignored(&e.path()))
+        })
         .filter_map(|e| e.file_name().to_str().map(String::from))
         .collect()
 }
@@ -257,8 +261,7 @@ fn read_index(dir: &Path) -> HashMap<usize, String> {
 fn is_ignored(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
-        .map(|n| IGNORED.contains(&n))
-        .unwrap_or(false)
+        .is_some_and(|n| IGNORED.contains(&n))
 }
 
 #[derive(Debug, PartialEq, Clone)]

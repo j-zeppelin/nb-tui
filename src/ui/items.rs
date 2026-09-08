@@ -80,13 +80,13 @@ impl ItemPanel {
             KeyCode::Char('k') | KeyCode::Up => {
                 self.previous();
             }
-            KeyCode::Char('x') | KeyCode::Char('d') => {
+            KeyCode::Char('x' | 'd') => {
                 if let Some(idx) = self.list_state.selected()
                     && idx != 0
                     && let Some(item) = self.items.get(idx.saturating_sub(1))
                 {
                     return AppEvent::RequestDelete(item.id);
-                };
+                }
             }
             KeyCode::Backspace => {
                 return AppEvent::FolderBack;
@@ -111,7 +111,7 @@ impl ItemPanel {
                 }
             }
             _ => {}
-        };
+        }
 
         AppEvent::None
     }

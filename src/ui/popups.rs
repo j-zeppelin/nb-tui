@@ -57,7 +57,11 @@ impl<W: Widget> Widget for Popup<W> {
     }
 }
 
-pub fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rect {
+pub fn centered_rect_fixed(width: u16, height: u16, area: Rect) -> Rect {
+    area.centered(Constraint::Max(width), Constraint::Max(height))
+}
+
+pub fn centered_rect_percent(width_percent: u16, height_percent: u16, area: Rect) -> Rect {
     area.centered(
         Constraint::Percentage(width_percent),
         Constraint::Percentage(height_percent),

@@ -31,9 +31,7 @@ impl Config {
 }
 
 fn find_nbrc() -> PathBuf {
-    std::env::var("NBRC_PATH")
-        .map(PathBuf::from)
-        .unwrap_or(PathBuf::from("~/.nbrc"))
+    std::env::var("NBRC_PATH").map_or(PathBuf::from("~/.nbrc"), PathBuf::from)
 }
 
 fn source_nbrc(path: &Path) -> Result<HashMap<String, String>> {
@@ -48,10 +46,10 @@ fn source_nbrc(path: &Path) -> Result<HashMap<String, String>> {
             continue;
         }
 
-        if let Ok(s) = str::from_utf8(entry) {
-            if let Some((v, k)) = s.split_once('=') {
-                vars.insert(k.to_string(), v.to_string());
-            }
+        if let Ok(s) = str::from_utf8(entry)
+            && let Some((v, k)) = s.split_once('=')
+        {
+            vars.insert(k.to_string(), v.to_string());
         }
     }
 
@@ -109,7 +107,7 @@ impl Indicators {
     }
 
     fn get(&self, key: &str) -> &str {
-        self.map.get(key).map(String::as_str).unwrap_or("")
+        self.map.get(key).map_or("", String::as_str)
     }
 
     pub fn folder(&self) -> &str {

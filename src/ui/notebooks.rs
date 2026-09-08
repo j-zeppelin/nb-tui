@@ -24,10 +24,10 @@ impl NotebookPanel {
     pub fn new(nb_root: &NbRoot) -> Self {
         match nb_root {
             NbRoot::Local(path) => {
-                let name = path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path.display().to_string());
+                let name = path.file_name().map_or_else(
+                    || path.display().to_string(),
+                    |n| n.to_string_lossy().into_owned(),
+                );
 
                 Self {
                     notebooks: vec![name.clone()],
@@ -50,8 +50,9 @@ impl NotebookPanel {
         }
     }
 
-    pub fn set_notebooks(&mut self, notebooks: Vec<String>, current: String) {
-        self.notebooks = notebooks.clone();
+    pub fn set_notebooks(&mut self, notebooks: &[String], current: &str) {
+        notebooks.clone_into(&mut self.notebooks);
+
         self.list_state
             .select(notebooks.iter().position(|n| *n == current));
     }

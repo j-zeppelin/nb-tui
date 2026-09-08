@@ -35,16 +35,16 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
     loop {
         terminal.draw(|frame| app.render(frame))?;
 
-        if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key_event) = event::read()? {
-                match app.handle_key_event(key_event) {
-                    AppEvent::OpenEditor(id) => {
-                        // TODO: handle error
-                        let _ = open_in_editor(&mut terminal, id);
-                    }
-                    AppEvent::Quit => break Ok(()),
-                    _ => {}
+        if event::poll(Duration::from_millis(100))?
+            && let Event::Key(key_event) = event::read()?
+        {
+            match app.handle_key_event(key_event) {
+                AppEvent::OpenEditor(id) => {
+                    // TODO: handle error
+                    let _ = open_in_editor(&mut terminal, id);
                 }
+                AppEvent::Quit => break Ok(()),
+                _ => {}
             }
         }
 

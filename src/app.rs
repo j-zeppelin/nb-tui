@@ -18,7 +18,7 @@ use crate::{
         CurrentSection, Ui,
         items::ItemPanel,
         notebooks::NotebookPanel,
-        popups::{ConfirmAction, Overlay, OverlayAction, confirm::ConfirmPopup},
+        popups::{ConfirmAction, Overlay, OverlayAction, confirm::ConfirmPopup, error::ErrorPopup},
         search::{SearchMode, SearchPanel},
     },
 };
@@ -172,10 +172,10 @@ impl App {
                         message: format!("Delete {} ({})?", item.title, item.filename),
                         selected: crate::ui::popups::confirm::Choice::No,
                         on_confirm: ConfirmAction::DeleteItem(item.id),
-                    })
+                    });
                 } else {
                     self.ui
-                        .display_err(format!("Could not find item with id {}!", id));
+                        .display_err(format!("Could not find item with id {id}!"));
                 }
             }
             other => {
@@ -245,12 +245,12 @@ impl App {
         let root = self.nb_root.global_root();
         let notebooks = nb::get_notebooks(root);
         self.notebook_panel
-            .set_notebooks(notebooks, nb::get_current_notebook(root));
+            .set_notebooks(&notebooks, &nb::get_current_notebook(root));
     }
 
     fn handle_overlay_key(&mut self, key: KeyEvent) -> AppEvent {
         let action = match &mut self.ui.overlay {
-            Overlay::Error(error_popup) => error_popup.handle_key(key),
+            Overlay::Error(_) => ErrorPopup::handle_key(key),
             Overlay::Confirm(confirm_popup) => confirm_popup.handle_key(key),
             Overlay::NewNote => todo!(),
             Overlay::None => unreachable!(),
@@ -273,6 +273,7 @@ impl App {
 
             OverlayAction::None => {}
         }
-        return AppEvent::None;
+
+        AppEvent::None
     }
 }
