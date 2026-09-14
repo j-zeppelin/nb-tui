@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Paragraph, Wrap},
 };
 
-use crate::ui::popups::{OverlayAction, Popup, centered_rect_percent};
+use crate::ui::popups::{OverlayAction, Popup, centered_rect_fixed};
 
 pub struct ErrorPopup {
     pub message: String,
@@ -29,6 +29,6 @@ impl ErrorPopup {
         )
         .border_style(Style::new().red());
 
-        f.render_widget(popup, centered_rect_percent(50, 10, area));
+        f.render_widget(popup, centered_rect_fixed(50, 5, area));
     }
 }

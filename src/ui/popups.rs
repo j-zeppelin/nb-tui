@@ -6,7 +6,10 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 
-use crate::ui::popups::{confirm::ConfirmPopup, error::ErrorPopup};
+use crate::{
+    nb::item::NbItemId,
+    ui::popups::{confirm::ConfirmPopup, error::ErrorPopup},
+};
 
 pub mod confirm;
 pub mod error;
@@ -89,7 +92,7 @@ pub enum OverlayAction {
 
 #[derive(Clone)]
 pub enum ConfirmAction {
-    DeleteItem(usize),
+    DeleteItem(NbItemId),
     CreateNote {
         name: String,
         encrypted: bool,

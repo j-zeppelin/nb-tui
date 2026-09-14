@@ -7,10 +7,11 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
 
+use crate::nb::root::NbRoot;
 use crate::ui;
 use crate::{
     app::AppEvent,
-    nb::{self, NbRoot},
+    nb::{self},
 };
 
 pub struct NotebookPanel {
@@ -37,8 +38,8 @@ impl NotebookPanel {
                 }
             }
             NbRoot::Global(root) => {
-                let notebooks = nb::get_notebooks(root);
-                let current_notebook = nb::get_current_notebook(root);
+                let notebooks = nb::root::get_notebooks(root);
+                let current_notebook = nb::root::get_current_notebook(root);
 
                 Self {
                     notebooks,

@@ -58,13 +58,13 @@ impl ConfirmPopup {
             Line::from(self.message.clone()).bold(),
             Line::from(""),
             Line::from(vec![
-                Span::from("Yes (y)").add_modifier(if self.selected == Choice::Yes {
+                Span::from(" Yes (y) ").add_modifier(if self.selected == Choice::Yes {
                     Modifier::REVERSED
                 } else {
                     Modifier::empty()
                 }),
                 Span::from("     "),
-                Span::from("No (n)").add_modifier(if self.selected == Choice::No {
+                Span::from(" No (n) ").add_modifier(if self.selected == Choice::No {
                     Modifier::REVERSED
                 } else {
                     Modifier::empty()

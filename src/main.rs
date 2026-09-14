@@ -1,4 +1,4 @@
-use std::{io, process::Command, time::Duration};
+use std::{fs::File, io, process::Command, time::Duration};
 
 use crossterm::{
     event::{self, Event},
@@ -6,16 +6,37 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::DefaultTerminal;
+use tracing_appender::non_blocking::WorkerGuard;
 
-use crate::app::{App, AppEvent};
+use crate::{
+    app::{App, AppEvent},
+    nb::item::NbItemId,
+};
 
 mod app;
 mod config;
+mod nav;
 mod nb;
 mod ui;
 
+fn init_logging() -> WorkerGuard {
+    let file = File::create("debug.log").expect("failed to create log file");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file);
+
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .with_target(true)
+        .init();
+
+    guard
+}
+
 fn main() -> color_eyre::Result<()> {
+    let _guard = init_logging();
     color_eyre::install()?;
+
+    tracing::info!("app startring");
 
     if let Err(err) = nb::check_nb_available() {
         eprintln!("{err}");
@@ -52,7 +73,7 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
     }
 }
 
-fn open_in_editor(term: &mut DefaultTerminal, id: usize) -> io::Result<()> {
+fn open_in_editor(term: &mut DefaultTerminal, id: NbItemId) -> io::Result<()> {
     disable_raw_mode()?;
     execute!(term.backend_mut(), LeaveAlternateScreen)?;
 

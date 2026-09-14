@@ -10,7 +10,8 @@ use ratatui::{
 use crate::{
     app::AppEvent,
     config::Config,
-    nb::{FolderNav, NbItem, NbItemKind},
+    nav::FolderNav,
+    nb::item::{NbItem, NbItemKind},
     ui,
 };
 
@@ -85,7 +86,7 @@ impl ItemPanel {
                     && idx != 0
                     && let Some(item) = self.items.get(idx.saturating_sub(1))
                 {
-                    return AppEvent::RequestDelete(item.id);
+                    return AppEvent::RequestDelete(item.id.clone());
                 }
             }
             KeyCode::Backspace => {

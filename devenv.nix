@@ -27,6 +27,7 @@
     nb todo add todo
     nb todo add todo2
     nb todo do todo2
+    nb add deep/deeper/wtf.md --content "deep note"
     # nb bookmark https://www.google.com
   '';
 }

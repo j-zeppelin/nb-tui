@@ -5,7 +5,7 @@ use std::{
     process::Command,
 };
 
-use crate::nb::NbItemKind;
+use crate::nb::item::NbItemKind;
 
 #[derive(Debug, Clone)]
 pub struct Config {

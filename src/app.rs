@@ -13,7 +13,8 @@ use notify::EventKind;
 
 use crate::{
     config::Config,
-    nb::{self, FolderNav, NbRoot},
+    nav::FolderNav,
+    nb::{self, item::NbItemId, root::NbRoot},
     ui::{
         CurrentSection, Ui,
         items::ItemPanel,
@@ -27,8 +28,8 @@ use crate::{
 pub enum AppEvent {
     None,
     Quit,
-    OpenEditor(usize),
-    RequestDelete(usize),
+    OpenEditor(NbItemId),
+    RequestDelete(NbItemId),
     NotebookSelected(String),
     QueryChanged,
     SearchSubmitted,
@@ -56,8 +57,8 @@ impl App {
         let explicit_path = std::env::args().nth(1).map(PathBuf::from);
         let (fs_tx, fs_rx) = mpsc::channel();
 
-        let nb_root = nb::NbRoot::resolve(explicit_path).expect("could not resolve nb root");
-        let nav = nb::FolderNav::new(nb_root.active_notebook_dir());
+        let nb_root = NbRoot::resolve(explicit_path).expect("could not resolve nb root");
+        let nav = FolderNav::new(nb_root.active_notebook_dir());
 
         let watcher = nb::spawn_fs_watcher(nb_root.global_root(), fs_tx.clone())
             .expect("failed to start fs watcher");
@@ -135,7 +136,7 @@ impl App {
 
         match action {
             AppEvent::NotebookSelected(notebook) => {
-                match nb::set_current_notebook(self.nb_root.global_root(), &notebook) {
+                match nb::root::set_current_notebook(self.nb_root.global_root(), &notebook) {
                     Ok(..) => {
                         self.nav.reset(self.nb_root.global_root().join(&notebook));
                         self.notebook_panel.current_notebook = notebook;
@@ -170,8 +171,8 @@ impl App {
                 if let Some(item) = item {
                     self.ui.overlay = Overlay::Confirm(ConfirmPopup {
                         message: format!("Delete {} ({})?", item.title, item.filename),
-                        selected: crate::ui::popups::confirm::Choice::No,
-                        on_confirm: ConfirmAction::DeleteItem(item.id),
+                        selected: crate::ui::popups::confirm::Choice::Yes,
+                        on_confirm: ConfirmAction::DeleteItem(item.id.clone()),
                     });
                 } else {
                     self.ui
@@ -228,12 +229,12 @@ impl App {
     }
 
     fn refresh_items(&mut self) {
-        let items = nb::scan_folder(&self.nav.current_dir());
+        let items = nb::item::scan_folder(&self.nav.current_dir());
         self.item_panel.set_items(items);
         self.item_panel.apply_filter(&self.search_panel.query);
     }
 
-    fn remove_item(&mut self, id: usize) {
+    fn remove_item(&mut self, id: &NbItemId) {
         if let Err(err) = nb::remove_item(id) {
             self.ui.display_err(err.to_string());
         } else {
@@ -243,9 +244,9 @@ impl App {
 
     fn refresh_notebooks(&mut self) {
         let root = self.nb_root.global_root();
-        let notebooks = nb::get_notebooks(root);
+        let notebooks = nb::root::get_notebooks(root);
         self.notebook_panel
-            .set_notebooks(&notebooks, &nb::get_current_notebook(root));
+            .set_notebooks(&notebooks, &nb::root::get_current_notebook(root));
     }
 
     fn handle_overlay_key(&mut self, key: KeyEvent) -> AppEvent {
@@ -262,7 +263,7 @@ impl App {
                 self.ui.close_overlay();
 
                 match confirm_action {
-                    ConfirmAction::DeleteItem(id) => self.remove_item(id),
+                    ConfirmAction::DeleteItem(id) => self.remove_item(&id),
                     ConfirmAction::CreateNote {
                         name,
                         encrypted,
