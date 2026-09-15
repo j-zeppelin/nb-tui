@@ -3,7 +3,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     style::{Color, Style},
-    text::{Line, Span},
+    text::Line,
     widgets::{Block, BorderType, Borders, List, ListItem, ListState},
 };
 
@@ -155,17 +155,14 @@ impl ItemPanel {
 
                 label.push_str(&i.title);
 
-                let line = Line::from(vec![
-                    Span::styled(format!("[{}] ", i.id), Style::default().green()),
-                    Span::styled(
-                        label,
-                        if i.kind == NbItemKind::Folder {
-                            Style::new().bold()
-                        } else {
-                            Style::new()
-                        },
-                    ),
-                ]);
+                let line = Line::styled(
+                    label,
+                    if i.kind == NbItemKind::Folder {
+                        Style::new().bold()
+                    } else {
+                        Style::new()
+                    },
+                );
 
                 ListItem::new(line)
             })

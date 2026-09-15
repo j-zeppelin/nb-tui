@@ -30,6 +30,7 @@ pub enum AppEvent {
     Quit,
     OpenEditor(NbItemId),
     RequestDelete(NbItemId),
+    RequestCreate,
     NotebookSelected(String),
     QueryChanged,
     SearchSubmitted,
@@ -179,6 +180,7 @@ impl App {
                         .display_err(format!("Could not find item with id {id}!"));
                 }
             }
+            AppEvent::RequestCreate => self.ui.overlay = Overlay::NewNote(todo!()),
             other => {
                 return other;
             }
@@ -234,6 +236,10 @@ impl App {
         self.item_panel.apply_filter(&self.search_panel.query);
     }
 
+    fn add_item(&mut self, name: String, encrypted: bool, pinned: bool) {
+        todo!()
+    }
+
     fn remove_item(&mut self, id: &NbItemId) {
         if let Err(err) = nb::remove_item(id) {
             self.ui.display_err(err.to_string());
@@ -253,7 +259,7 @@ impl App {
         let action = match &mut self.ui.overlay {
             Overlay::Error(_) => ErrorPopup::handle_key(key),
             Overlay::Confirm(confirm_popup) => confirm_popup.handle_key(key),
-            Overlay::NewNote => todo!(),
+            Overlay::NewNote(create_popup) => create_popup.handle_key(key),
             Overlay::None => unreachable!(),
         };
 
@@ -268,7 +274,7 @@ impl App {
                         name,
                         encrypted,
                         pinned,
-                    } => todo!(),
+                    } => self.add_item(name, encrypted, pinned),
                 }
             }
 

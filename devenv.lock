@@ -3,11 +3,11 @@
     "devenv": {
       "locked": {
         "dir": "src/modules",
-        "lastModified": 1787836922,
-        "narHash": "sha256-SeAM6TKoXxFLwHWgkaTIZi5L5doM6mMUT3WxshF+9Eg=",
+        "lastModified": 1789480904,
+        "narHash": "sha256-anHWHTkxI7423/eUroN9Rc4+H8VIGyIUWq/hV1egBDQ=",
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "6cdf7c1e5845b4455d0c0e1461b4c4be4f43bd7d",
+        "rev": "0fd5e6d3a9b2ae6f10205a3e95e0ca58d526c5a6",
         "type": "github"
       },
       "original": {
@@ -67,11 +67,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787834454,
-        "narHash": "sha256-jXSvqn04IOecJCvSvl8+g3PsbDVNP6qKs6dKUs/b16k=",
+        "lastModified": 1789457514,
+        "narHash": "sha256-Aggle++fTyAifBy+QBPxjM+obO5iepKW/8MDxQtgGvI=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "dc2fd1acc537f3583744e1373597a5731ff7a6e3",
+        "rev": "89e99bf0778a8f2cd18c9360c3f19c1ee47fc739",
         "type": "github"
       },
       "original": {

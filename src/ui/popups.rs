@@ -8,10 +8,11 @@ use ratatui::{
 
 use crate::{
     nb::item::NbItemId,
-    ui::popups::{confirm::ConfirmPopup, error::ErrorPopup},
+    ui::popups::{confirm::ConfirmPopup, create::CreatePopup, error::ErrorPopup},
 };
 
 pub mod confirm;
+pub mod create;
 pub mod error;
 
 #[derive(Debug, Default)]
@@ -75,7 +76,7 @@ pub enum Overlay {
     None,
     Error(ErrorPopup),
     Confirm(ConfirmPopup),
-    NewNote,
+    NewNote(CreatePopup),
 }
 
 impl Overlay {
