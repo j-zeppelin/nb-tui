@@ -19,6 +19,7 @@ pub struct ItemPanel {
     pub list_state: ListState,
     pub items: Vec<NbItem>,
     visible_indices: Vec<usize>,
+    last_idx: usize,
 }
 
 impl ItemPanel {
@@ -27,12 +28,13 @@ impl ItemPanel {
             items: Vec::new(),
             visible_indices: Vec::new(),
             list_state: ListState::default().with_selected(Some(0)),
+            last_idx: 0,
         }
     }
 
     pub fn set_items(&mut self, items: Vec<NbItem>) {
         self.items = items;
-        self.list_state.select(Some(0));
+        self.list_state.select(Some(self.last_idx));
     }
 
     pub fn apply_filter(&mut self, query: &str) {
@@ -63,6 +65,7 @@ impl ItemPanel {
         };
 
         self.list_state.select(Some(i));
+        self.last_idx = i;
     }
 
     fn previous(&mut self) {
@@ -71,6 +74,7 @@ impl ItemPanel {
             None => 0,
         };
         self.list_state.select(Some(i));
+        self.last_idx = i;
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> AppEvent {

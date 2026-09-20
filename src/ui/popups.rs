@@ -126,7 +126,7 @@ pub enum Overlay {
     None,
     Error(ErrorPopup),
     Confirm(ConfirmPopup),
-    NewNote(CreatePopup),
+    Create(CreatePopup),
 }
 
 impl Overlay {

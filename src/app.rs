@@ -183,7 +183,7 @@ impl App {
                         .display_err(format!("Could not find item with id {id}!"));
                 }
             }
-            AppEvent::RequestCreate => self.ui.overlay = Overlay::NewNote(CreatePopup::default()),
+            AppEvent::RequestCreate => self.ui.overlay = Overlay::Create(CreatePopup::default()),
             other => {
                 return other;
             }
@@ -234,7 +234,7 @@ impl App {
             Overlay::None => {}
             Overlay::Error(error_popup) => error_popup.render(f, f.area()),
             Overlay::Confirm(confirm_popup) => confirm_popup.render(f, f.area()),
-            Overlay::NewNote(create_popup) => {
+            Overlay::Create(create_popup) => {
                 create_popup.render(f, f.area(), &self.config.indicators)
             }
         }
@@ -273,7 +273,7 @@ impl App {
         let action = match &mut self.ui.overlay {
             Overlay::Error(_) => ErrorPopup::handle_key(key),
             Overlay::Confirm(confirm_popup) => confirm_popup.handle_key(key),
-            Overlay::NewNote(create_popup) => create_popup.handle_key(key),
+            Overlay::Create(create_popup) => create_popup.handle_key(key),
             Overlay::None => unreachable!(),
         };
 
