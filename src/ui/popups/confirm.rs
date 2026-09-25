@@ -73,7 +73,9 @@ impl ConfirmPopup {
         ])
         .alignment(Alignment::Center);
 
-        let popup = Popup::new("Deletion", content).border_style(Style::new().yellow());
+        let popup = Popup::new(content)
+            .title_top("Deletion".into())
+            .border_style(Style::new().yellow());
 
         f.render_widget(popup, centered_rect_fixed(50, 5, area));
     }

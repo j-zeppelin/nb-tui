@@ -22,11 +22,11 @@ impl ErrorPopup {
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
         let popup = Popup::new(
-            "Error",
             Paragraph::new(self.message.as_str())
                 .wrap(Wrap { trim: true })
                 .alignment(Alignment::Center),
         )
+        .title_top("Error".into())
         .border_style(Style::new().red());
 
         f.render_widget(popup, centered_rect_fixed(50, 5, area));

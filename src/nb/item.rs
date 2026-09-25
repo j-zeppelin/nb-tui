@@ -69,30 +69,30 @@ pub enum NbItemKind {
 impl NbItemKind {
     pub fn from_ext(ext: &str) -> Self {
         match ext.to_ascii_lowercase().as_str() {
-            // Text / note-like content
-            "md" | "markdown" | "txt" | "text" | "rst" | "adoc" | "org" | "rs" | "js" | "ts"
-            | "jsx" | "tsx" | "py" | "go" | "c" | "cpp" | "h" | "hpp" | "java" | "kt" | "rb"
-            | "php" | "sh" | "bash" | "fish" | "zsh" | "toml" | "yaml" | "yml" | "json" | "xml"
-            | "html" | "css" | "sql" | "lua" | "nix" | "vim" | "el" => NbItemKind::Note,
-
             // Images
-            "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg" | "ico" | "tiff" | "heic" => {
-                NbItemKind::Image
-            }
+            "afphoto" | "ai" | "bmp" | "gif" | "heic" | "ind" | "indd" | "jpg" | "jpeg" | "png"
+            | "psd" | "raw" | "svg" | "svgz" | "tif" | "tiff" | "webp" => NbItemKind::Image,
 
             // Audio
             "mp3" | "wav" | "flac" | "ogg" | "m4a" | "aac" | "opus" => NbItemKind::Audio,
 
             // Video
-            "mp4" | "mkv" | "mov" | "avi" | "webm" | "flv" | "wmv" => NbItemKind::Video,
+            "avi" | "flv" | "m4p" | "m4v" | "mp2" | "mp4" | "mov" | "mpeg" | "mpg" | "qt"
+            | "webm" | "wmv" => NbItemKind::Video,
 
             // Documents
-            "pdf" | "doc" | "docx" | "odt" | "rtf" | "xls" | "xlsx" | "ppt" | "pptx" | "csv" => {
-                NbItemKind::Document
-            }
+            "pdf" | "doc" | "docx" | "odt" | "rtf" | "xls" | "xlsx" => NbItemKind::Document,
 
             // Ebooks
             "epub" | "mobi" | "azw" | "azw3" | "fb2" => NbItemKind::Ebook,
+
+            // Bookmarks
+            "bookmark.md" | "bookmark.md.enc" => NbItemKind::Bookmark {
+                url: "".to_string(),
+            },
+
+            // Todos
+            "todo.md" | "todo.md.enc" => NbItemKind::Todo { done: false },
 
             _ => NbItemKind::Note,
         }

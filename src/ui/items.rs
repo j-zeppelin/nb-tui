@@ -81,6 +81,9 @@ impl ItemPanel {
             KeyCode::Char('k') | KeyCode::Up => {
                 self.previous();
             }
+            KeyCode::Char('a') => {
+                return AppEvent::RequestCreate;
+            }
             KeyCode::Char('x' | 'd') => {
                 if let Some(idx) = self.list_state.selected()
                     && idx != 0

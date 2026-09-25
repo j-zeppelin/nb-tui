@@ -19,7 +19,10 @@ use crate::{
         CurrentSection, Ui,
         items::ItemPanel,
         notebooks::NotebookPanel,
-        popups::{ConfirmAction, Overlay, OverlayAction, confirm::ConfirmPopup, error::ErrorPopup},
+        popups::{
+            ConfirmAction, Overlay, OverlayAction, confirm::ConfirmPopup, create::CreatePopup,
+            dim_area, error::ErrorPopup,
+        },
         search::{SearchMode, SearchPanel},
     },
 };
@@ -180,7 +183,7 @@ impl App {
                         .display_err(format!("Could not find item with id {id}!"));
                 }
             }
-            AppEvent::RequestCreate => self.ui.overlay = Overlay::NewNote(todo!()),
+            AppEvent::RequestCreate => self.ui.overlay = Overlay::NewNote(CreatePopup::default()),
             other => {
                 return other;
             }
@@ -222,11 +225,18 @@ impl App {
             matches!(self.ui.current_section, CurrentSection::Items),
         );
 
+        if self.ui.overlay.is_active() {
+            let area = f.area();
+            dim_area(f.buffer_mut(), area);
+        }
+
         match &self.ui.overlay {
             Overlay::None => {}
             Overlay::Error(error_popup) => error_popup.render(f, f.area()),
             Overlay::Confirm(confirm_popup) => confirm_popup.render(f, f.area()),
-            Overlay::NewNote => todo!(),
+            Overlay::NewNote(create_popup) => {
+                create_popup.render(f, f.area(), &self.config.indicators)
+            }
         }
     }
 
