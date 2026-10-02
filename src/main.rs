@@ -8,10 +8,7 @@ use crossterm::{
 use ratatui::DefaultTerminal;
 use tracing_appender::non_blocking::WorkerGuard;
 
-use crate::{
-    app::{App, AppEvent},
-    nb::item::NbItemId,
-};
+use crate::app::{App, AppEvent};
 
 mod app;
 mod config;
@@ -61,8 +58,9 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
         {
             match app.handle_key_event(key_event) {
                 AppEvent::OpenEditor(id) => {
-                    // TODO: handle error
-                    let _ = open_in_editor(&mut terminal, id);
+                    if let Err(err) = nb::open_in_editor(&mut terminal, id) {
+                        app.ui.display_err(err.to_string());
+                    }
                 }
                 AppEvent::Quit => break Ok(()),
                 _ => {}
@@ -71,19 +69,4 @@ fn run(mut terminal: DefaultTerminal, app: &mut App) -> color_eyre::Result<()> {
 
         app.poll_fs_events();
     }
-}
-
-fn open_in_editor(term: &mut DefaultTerminal, id: NbItemId) -> io::Result<()> {
-    disable_raw_mode()?;
-    execute!(term.backend_mut(), LeaveAlternateScreen)?;
-
-    Command::new("nb")
-        .args(["edit", &id.to_string()])
-        .status()?;
-
-    enable_raw_mode()?;
-
-    execute!(term.backend_mut(), EnterAlternateScreen)?;
-    term.clear()?;
-    Ok(())
 }

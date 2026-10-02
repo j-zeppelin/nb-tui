@@ -40,7 +40,14 @@ impl CreatePopup {
 
     pub fn handle_key(&mut self, key: KeyEvent) -> OverlayAction {
         match key.code {
-            KeyCode::Enter => return OverlayAction::Confirm(self.on_create.clone()),
+            KeyCode::Enter => {
+                self.on_create = ConfirmAction::CreateNote {
+                    name: self.input.value_and_reset(),
+                    encrypted: self.encrypted,
+                    pinned: self.pinned,
+                };
+                return OverlayAction::Confirm(self.on_create.clone());
+            }
 
             KeyCode::Esc => {
                 return OverlayAction::Close;
@@ -79,6 +86,7 @@ impl CreatePopup {
             popup_area.x + self.input.visual_cursor() as u16 + 1,
             popup_area.y + 1,
         ));
+
         f.render_widget(popup, popup_area);
     }
 }

@@ -14,5 +14,5 @@ devenv.local.yaml
 
 /target
 
-nb.sh
-nb
+./nb.sh
+./nb

@@ -246,8 +246,12 @@ impl App {
         self.item_panel.apply_filter(&self.search_panel.query);
     }
 
-    fn add_item(&mut self, name: String, encrypted: bool, pinned: bool) {
-        todo!()
+    fn add_item(&mut self, name: String, pinned: bool, encrypted: bool) {
+        if let Err(err) = nb::add_item(&name, pinned) {
+            self.ui.display_err(err.to_string());
+        } else {
+            self.refresh_items();
+        }
     }
 
     fn remove_item(&mut self, id: &NbItemId) {
@@ -284,7 +288,7 @@ impl App {
                         name,
                         encrypted,
                         pinned,
-                    } => self.add_item(name, encrypted, pinned),
+                    } => self.add_item(name, pinned, encrypted),
                 }
             }
 

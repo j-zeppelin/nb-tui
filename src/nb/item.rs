@@ -131,6 +131,20 @@ impl NbItemId {
 
         Self { folder, id }
     }
+
+    pub fn from_str(str: &str) -> Option<Self> {
+        let Some((folder, id)) = str.rsplit_once('/') else {
+            return Some(Self {
+                folder: None,
+                id: str.parse().ok()?,
+            });
+        };
+
+        Some(Self {
+            folder: Some(folder.to_string()),
+            id: id.parse().ok()?,
+        })
+    }
 }
 
 impl std::fmt::Display for NbItemId {
@@ -319,11 +333,12 @@ mod tests {
     #[test]
     fn parses_pinned_folder() {
         let dir = Builder::new()
-            .prefix("my-folder")
+            .prefix("my-folder1")
             .rand_bytes(0)
             .tempdir()
             .unwrap();
-        let pinned: HashSet<String> = ["my-folder".to_string()].into_iter().collect();
+
+        let pinned: HashSet<String> = ["my-folder1".to_string()].into_iter().collect();
 
         let item = NbItem::parse(0, dir.path().to_path_buf(), &pinned).unwrap();
 
