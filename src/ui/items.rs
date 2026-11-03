@@ -46,6 +46,8 @@ impl ItemPanel {
                 .enumerate()
                 .filter_map(|(idx, item)| {
                     item.title
+                        .as_ref()
+                        .unwrap_or(&item.filename)
                         .to_lowercase()
                         .contains(&query.to_lowercase())
                         .then_some(idx)
@@ -111,9 +113,16 @@ impl ItemPanel {
                     if let Some(item) = selected_item {
                         match item.kind {
                             NbItemKind::Folder => {
-                                return AppEvent::FolderOpened(item.title);
+                                return AppEvent::FolderOpened(item.filename);
                             }
-                            _ => return AppEvent::OpenEditor(item.id),
+
+                            NbItemKind::Todo { done: _ }
+                            | NbItemKind::Bookmark { url: _ }
+                            | NbItemKind::Note => {
+                                return AppEvent::OpenEditor(item.id);
+                            }
+
+                            _ => return AppEvent::OpenInDefaultApp(item.id),
                         }
                     }
                 }
@@ -156,16 +165,19 @@ impl ItemPanel {
                 }
 
                 label.push_str(config.indicators.for_kind(&i.kind));
+
                 if !matches!(i.kind, NbItemKind::Note) {
                     label.push(' ');
                 }
 
-                label.push_str(&i.title);
+                label.push_str(&i.title.as_ref().unwrap_or(&i.filename));
 
                 let line = Line::styled(
                     label,
                     if i.kind == NbItemKind::Folder {
                         Style::new().bold()
+                    } else if i.title.is_some() {
+                        Style::new().italic()
                     } else {
                         Style::new()
                     },

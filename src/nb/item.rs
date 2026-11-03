@@ -159,7 +159,7 @@ impl std::fmt::Display for NbItemId {
 #[derive(Debug, Clone)]
 pub struct NbItem {
     pub id: NbItemId,
-    pub title: String,
+    pub title: Option<String>,
     pub filename: String,
     pub kind: NbItemKind,
     pub pinned: bool,
@@ -176,7 +176,7 @@ impl NbItem {
         if file_type.is_dir() {
             return Some(Self {
                 id,
-                title: file_name.to_string(),
+                title: None,
                 filename: file_name.to_string(),
                 kind: NbItemKind::Folder,
                 pinned: pinned.contains(file_name),
@@ -188,12 +188,12 @@ impl NbItem {
         let pinned = pinned.contains(file_name);
         let stripped_filename = file_name.trim_end_matches(".enc");
 
-        let kind_and_tile = if stripped_filename.ends_with(".todo.md") {
+        let kind_and_title = if stripped_filename.ends_with(".todo.md") {
             let (title, done) = Self::todo_info(File::open(&path).ok()?)?;
-            Some((title, NbItemKind::Todo { done }))
+            Some((Some(title), NbItemKind::Todo { done }))
         } else if stripped_filename.ends_with(".bookmark.md") {
             let (title, url) = Self::bookmark_info(File::open(&path).ok()?)?;
-            Some((title, NbItemKind::Bookmark { url }))
+            Some((Some(title), NbItemKind::Bookmark { url }))
         } else {
             let ext = Path::new(stripped_filename)
                 .extension()
@@ -205,15 +205,14 @@ impl NbItem {
             let title = match kind {
                 NbItemKind::Note if ext == "md" || ext == "markdown" => {
                     Self::note_info(File::open(&path).ok()?)
-                        .unwrap_or_else(|| file_name.to_string())
                 }
-                _ => file_name.to_string(),
+                _ => None,
             };
 
             Some((title, kind))
         };
 
-        let (title, kind) = kind_and_tile?;
+        let (title, kind) = kind_and_title?;
 
         Some(Self {
             id,
@@ -324,7 +323,7 @@ mod tests {
 
         let item = NbItem::parse(0, dir.path().to_path_buf(), &HashSet::new()).unwrap();
 
-        assert_eq!(item.title, "my-folder");
+        assert_eq!(item.filename, "my-folder".to_string());
         assert_eq!(item.kind, NbItemKind::Folder);
         assert!(!item.pinned);
         assert!(!item.encrypted);
@@ -353,7 +352,7 @@ mod tests {
 
         let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
-        assert_eq!(item.title, "Water the plants");
+        assert_eq!(item.title, Some("Water the plants".to_string()));
         assert_eq!(item.kind, NbItemKind::Todo { done: false });
         assert!(!item.encrypted);
     }
@@ -378,7 +377,7 @@ mod tests {
 
         let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
-        assert_eq!(item.title, "Rust Docs");
+        assert_eq!(item.title, Some("Rust Docs".to_string()));
         assert_eq!(
             item.kind,
             NbItemKind::Bookmark {
@@ -396,7 +395,7 @@ mod tests {
 
         let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
-        assert_eq!(item.title, "Just a regular note");
+        assert_eq!(item.title, Some("Just a regular note".to_string()));
         assert_eq!(item.kind, NbItemKind::Note);
     }
 
@@ -414,7 +413,7 @@ mod tests {
 
         let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
-        assert_eq!(item.title, file_name);
+        assert_eq!(item.title, Some(file_name));
         assert_eq!(item.kind, NbItemKind::Note);
     }
 
@@ -427,7 +426,7 @@ mod tests {
         let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
         assert!(item.encrypted);
-        assert_eq!(item.title, "Secret task");
+        assert_eq!(item.title, Some("Secret task".to_string()));
         assert_eq!(item.kind, NbItemKind::Todo { done: false });
     }
 
@@ -445,7 +444,7 @@ mod tests {
 
         let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
-        assert_eq!(item.title, file_name);
+        assert_eq!(item.title, Some(file_name));
         assert_eq!(item.kind, NbItemKind::Note);
     }
 
@@ -463,7 +462,7 @@ mod tests {
 
         let item = NbItem::parse(0, file.path().to_path_buf(), &HashSet::new()).unwrap();
 
-        assert_eq!(item.title, file_name);
+        assert_eq!(item.title, Some(file_name));
         assert_eq!(item.kind, NbItemKind::Image);
     }
 

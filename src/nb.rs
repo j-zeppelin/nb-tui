@@ -5,10 +5,10 @@ use crossterm::{
 };
 use notify::{EventKind, Watcher};
 use ratatui::DefaultTerminal;
-use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 use std::{io, process::Command};
 use std::{path::Path, process::Stdio};
+use std::{sync::mpsc::Sender, thread};
 use thiserror::Error;
 
 use crate::nb::item::NbItemId;
@@ -51,15 +51,15 @@ impl OutputExt for std::process::Output {
 pub fn add_item(filename: &str, pinned: bool) -> Result<(), NbError> {
     let output = Command::new("nb")
         .stdin(Stdio::null())
-        .args(["add", "--title", filename, "--no-color"])
+        .args(["add", filename, "--template", "-n", "--no-color"])
         .output()
         .map_err(NbError::ExecutionFailure)?
-        .into_nb_result(format!("add --title {filename}"))?;
+        .into_nb_result(format!("add --filename {filename}"))?;
 
     if pinned {
         let Some(id) = get_id_from_nb_output(&output) else {
             return Err(NbError::NbFailure {
-                args: "add --title {filename}".to_string(),
+                args: "add --filename {filename}".to_string(),
                 stderr: "could not parse id from nb".to_string(),
             });
         };
@@ -109,6 +109,17 @@ pub fn open_in_editor(term: &mut DefaultTerminal, id: NbItemId) -> io::Result<()
 
     execute!(term.backend_mut(), EnterAlternateScreen)?;
     term.clear()?;
+    Ok(())
+}
+
+pub fn open_in_default_app(id: NbItemId) -> Result<(), NbError> {
+    let _ = thread::spawn(move || {
+        Command::new("nb")
+            .args(["open", &id.to_string()])
+            .status()
+            .map_err(NbError::ExecutionFailure)
+    });
+
     Ok(())
 }
 

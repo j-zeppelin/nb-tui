@@ -1,3 +1,8 @@
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
+
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
     Frame,
@@ -31,7 +36,7 @@ impl CreatePopup {
             encrypted: false,
             pinned: false,
             on_create: ConfirmAction::CreateNote {
-                name: "".to_string(),
+                filename: "".to_string(),
                 encrypted: false,
                 pinned: false,
             },
@@ -41,8 +46,16 @@ impl CreatePopup {
     pub fn handle_key(&mut self, key: KeyEvent) -> OverlayAction {
         match key.code {
             KeyCode::Enter => {
+                let input_value = self.input.value_and_reset();
+
+                let filename = if Path::new(&input_value).extension().is_none() {
+                    format!("{input_value}.md")
+                } else {
+                    input_value
+                };
+
                 self.on_create = ConfirmAction::CreateNote {
-                    name: self.input.value_and_reset(),
+                    filename,
                     encrypted: self.encrypted,
                     pinned: self.pinned,
                 };

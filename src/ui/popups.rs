@@ -145,7 +145,7 @@ pub enum OverlayAction {
 pub enum ConfirmAction {
     DeleteItem(NbItemId),
     CreateNote {
-        name: String,
+        filename: String,
         encrypted: bool,
         pinned: bool,
     },

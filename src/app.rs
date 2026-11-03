@@ -32,6 +32,7 @@ pub enum AppEvent {
     None,
     Quit,
     OpenEditor(NbItemId),
+    OpenInDefaultApp(NbItemId),
     RequestDelete(NbItemId),
     RequestCreate,
     NotebookSelected(String),
@@ -173,8 +174,14 @@ impl App {
                 let item = self.item_panel.items.iter().find(|i| i.id == id);
 
                 if let Some(item) = item {
+                    let message = if let Some(ref title) = item.title {
+                        format!("Delete {} ({})?", title, item.filename)
+                    } else {
+                        format!("Delete {}?", item.filename)
+                    };
+
                     self.ui.overlay = Overlay::Confirm(ConfirmPopup {
-                        message: format!("Delete {} ({})?", item.title, item.filename),
+                        message,
                         selected: crate::ui::popups::confirm::Choice::Yes,
                         on_confirm: ConfirmAction::DeleteItem(item.id.clone()),
                     });
@@ -184,6 +191,13 @@ impl App {
                 }
             }
             AppEvent::RequestCreate => self.ui.overlay = Overlay::Create(CreatePopup::default()),
+
+            AppEvent::OpenInDefaultApp(id) => {
+                if let Err(err) = nb::open_in_default_app(id) {
+                    self.ui.display_err(err.to_string());
+                }
+            }
+
             other => {
                 return other;
             }
@@ -246,8 +260,8 @@ impl App {
         self.item_panel.apply_filter(&self.search_panel.query);
     }
 
-    fn add_item(&mut self, name: String, pinned: bool, encrypted: bool) {
-        if let Err(err) = nb::add_item(&name, pinned) {
+    fn add_item(&mut self, file_name: String, pinned: bool, encrypted: bool) {
+        if let Err(err) = nb::add_item(&file_name, pinned) {
             self.ui.display_err(err.to_string());
         } else {
             self.refresh_items();
@@ -285,10 +299,10 @@ impl App {
                 match confirm_action {
                     ConfirmAction::DeleteItem(id) => self.remove_item(&id),
                     ConfirmAction::CreateNote {
-                        name,
+                        filename: file_name,
                         encrypted,
                         pinned,
-                    } => self.add_item(name, pinned, encrypted),
+                    } => self.add_item(file_name, pinned, encrypted),
                 }
             }
 
